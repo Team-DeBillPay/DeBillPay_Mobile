@@ -1,2 +1,5 @@
 import App from '../App';
-export default App;
+
+export default function Index() {
+  return <App />;
+}
