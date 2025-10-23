@@ -1,39 +1,86 @@
-import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { authApi } from '../api/authApi';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import GoogleButton from '../components/GoogleButton';
 import Input from '../components/Input';
 import ScreenWrapper from '../components/ScreenWrapper';
+import { useAuth } from '../contexts/AuthContext';
+import { handleApiError } from '../utils/errorHandler';
 
 type Props = {
-	onNavigate?: (screen: 'login' | 'register1' | 'register2' | 'app') => void;
+  onNavigate?: (screen: 'login' | 'register1' | 'register2' | 'app') => void;
 };
 
 const LoginScreen: React.FC<Props> = ({ onNavigate }) => {
-	return (
-			<ScreenWrapper>
-				<Card style={{ paddingHorizontal: 20 }}>
-					<Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
-					<Text style={styles.title}>Вхід</Text>
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState(''); 
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
-					<Input placeholder="Телефон / електронна пошта" />
-					<Input placeholder="Пароль" secureTextEntry />
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Помилка', 'Будь ласка, заповніть всі поля');
+      return;
+    }
 
-					<TouchableOpacity style={styles.forgotContainer} activeOpacity={0.7}>
-						<Text style={styles.forgotText}>Забули пароль</Text>
-					</TouchableOpacity>
+    setIsLoading(true);
+    try {
+      const response = await authApi.login({ email, password });
+      
+      await login(response.token, response.user);
+      
+      onNavigate?.('app');
+    } catch (error: any) {
+	  const userFriendlyError = handleApiError(error);
+      Alert.alert('Помилка', userFriendlyError);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-					<Text style={styles.smallText}>Ще немає аккаунта? <Text style={styles.link} onPress={() => onNavigate?.('register1')}>Зареєструватися</Text></Text>
+  return (
+    <ScreenWrapper>
+      <Card style={{ paddingHorizontal: 20 }}>
+        <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
+        <Text style={styles.title}>Вхід</Text>
 
-					<Button variant="primary" onPress={() => onNavigate?.('app')}>
-						Увійти
-					</Button>
+        <Input 
+          placeholder="Електронна пошта" 
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <Input 
+          placeholder="Пароль" 
+          secureTextEntry 
+          value={password}
+          onChangeText={setPassword}
+        />
 
-					<GoogleButton onPress={() => console.log('Google sign-in')} />
-				</Card>
-			</ScreenWrapper>
-	);
+        <TouchableOpacity style={styles.forgotContainer} activeOpacity={0.7}>
+          <Text style={styles.forgotText}>Забули пароль</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.smallText}>
+          Ще немає аккаунта? 
+          <Text style={styles.link} onPress={() => onNavigate?.('register1')}>Зареєструватися</Text>
+        </Text>
+
+        <Button 
+          variant="primary" 
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Вхід...' : 'Увійти'}
+        </Button>
+
+        <GoogleButton onPress={() => console.log('Google sign-in')} />
+      </Card>
+    </ScreenWrapper>
+  );
 };
 
 const styles = StyleSheet.create({
