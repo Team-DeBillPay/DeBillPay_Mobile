@@ -1,17 +1,18 @@
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useState } from 'react';
 import { Alert, Image, Text } from 'react-native';
+import { RootStackParamList } from '../../../App';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
 import GoogleButton from '../../components/GoogleButton';
 import Input from '../../components/Input';
 import ScreenWrapper from '../../components/ScreenWrapper';
 
-type Props = { 
-  onNavigate?: (screen: 'login' | 'register1' | 'register2' | 'app') => void;
-  onSaveStep1?: (data: { firstName: string; lastName: string }) => void;
-};
+type RegisterStep1NavProp = StackNavigationProp<RootStackParamList, 'RegisterStep1'>;
 
-const RegisterStep1: React.FC<Props> = ({ onNavigate, onSaveStep1 }) => {
+const RegisterStep1: React.FC = () => {
+  const navigation = useNavigation<RegisterStep1NavProp>();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState(''); 
 
@@ -20,9 +21,7 @@ const RegisterStep1: React.FC<Props> = ({ onNavigate, onSaveStep1 }) => {
       Alert.alert('Помилка', 'Будь ласка, заповніть ім\'я та прізвище');
       return;
     }
-
-    onSaveStep1?.({ firstName, lastName });
-    onNavigate?.('register2');
+      navigation.navigate('RegisterStep2', { firstName, lastName });
   };
 
   return (
@@ -43,8 +42,8 @@ const RegisterStep1: React.FC<Props> = ({ onNavigate, onSaveStep1 }) => {
           onChangeText={setLastName}
         />
 
-        <Text style={{ fontSize: 13, color: '#6B7A8A', marginTop: 10, textAlign: 'center' }}>
-          Вже є аккаунт? <Text style={{ color: '#134E9F' }} onPress={() => onNavigate?.('login')}>Авторизуватися</Text>
+        <Text style={{ fontSize: 13, color: '#6B7A8A', marginTop: 10, textAlign: 'center', marginBottom: 6 }}>
+          Вже є аккаунт? <Text style={{ color: '#134E9F' }} onPress={() => navigation.navigate('Login')}>Авторизуватися</Text>
         </Text>
 
         <Button onPress={handleContinue}>Продовжити</Button>
