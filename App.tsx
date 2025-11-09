@@ -1,3 +1,4 @@
+import { NavigationContainer } from '@react-navigation/native';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -24,7 +25,9 @@ const AppContent: React.FC = () => {
   }
 
   if (user) {
-    return <TabNavigator onNavigate={handleNavigate} />;
+    <NavigationContainer>
+      <TabNavigator onNavigate={handleNavigate} />
+    </NavigationContainer>
   }
 
   return (
