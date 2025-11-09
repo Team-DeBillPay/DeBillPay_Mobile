@@ -16,4 +16,6 @@ export const userApi = {
   
   updateUser: (id: number, data: UpdateUserData) => 
     apiClient.patch(`/api/users/${id}`, data),
+
+  getContacts: () => apiClient.get('/api/contacts'),
 };

@@ -2,16 +2,30 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RootStackParamList } from '../../App';
+import { userApi } from '../api/userApi';
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'Tabs'>;
 
 const ContactsScreen: React.FC = () => {
   const [search, setSearch] = useState('');
-  const hasFriends = false;
+  const [friends, setFriends] = useState<any[]>([]);
   const navigation = useNavigation<NavigationProp>();
+
+  useEffect(() => {
+    loadContacts();
+  }, []);
+
+  const loadContacts = async () => {
+    try {
+      const res = await userApi.getContacts();
+      setFriends(res.data || []);
+    } catch {
+      
+    }
+  };
 
   return (
     <ScreenWrapper>
@@ -24,19 +38,20 @@ const ContactsScreen: React.FC = () => {
       </View>
       <View style={styles.panelOuter}>
         <View style={styles.panelInner}>
+          <View style={styles.topIconsRow}>
+            <TouchableOpacity 
+              style={styles.headerIconBtn} 
+              onPress={() => navigation.navigate('AddFriend')}
+            >
+              <Ionicons name="person-add-outline" size={20} color="#0E2740" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8}>
+              <Ionicons name="mail-outline" size={20} color="#0E2740" />
+            </TouchableOpacity>
+          </View>
           <View style={styles.headerRow}>
             <Text style={styles.title}>Мої друзі</Text>
-            <View style={styles.headerIcons}>
-              <TouchableOpacity 
-                style={styles.headerIconBtn} 
-                onPress={() => navigation.navigate('AddFriend')}
-              >
-                <Ionicons name="person-add-outline" size={20} color="#0E2740" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8}>
-                <Ionicons name="mail-outline" size={20} color="#0E2740" />
-              </TouchableOpacity>
-            </View>
           </View>
 
           <View style={styles.searchRow}>
@@ -57,7 +72,7 @@ const ContactsScreen: React.FC = () => {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            {!hasFriends ? (
+            {friends.length === 0 ? (
               <View style={styles.emptyWrap}>
                 <Text style={styles.emptyText}>Поки що у Вас немає жодного друга…</Text>
                 <TouchableOpacity 
@@ -68,7 +83,18 @@ const ContactsScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             ) : (
-              <View />
+              friends
+                .filter(f => (f.firstName + ' ' + f.lastName).toLowerCase().includes(search.toLowerCase()))
+                .map((f, i) => (
+                  <View key={i} style={styles.friendCard}>
+                    <Ionicons name="person-circle-outline" size={28} color="#0E2740" />
+                    <Text style={styles.friendName}>{f.firstName} {f.lastName}</Text>
+
+                    <TouchableOpacity activeOpacity={0.8}>
+                      <Ionicons name="trash-outline" size={22} color="#0E2740" />
+                    </TouchableOpacity>
+                  </View>
+                ))
             )}
           </ScrollView>
         </View>
@@ -104,20 +130,21 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
-  headerRow: {
+  topIconsRow: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
+    width: '100%',
+    marginBottom: 4,
+  },
+  headerRow: {
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 10,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
     color: '#0E2740',
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    gap: 10,
+    textAlign: 'center',
   },
   headerIconBtn: {
     width: 34,
@@ -128,6 +155,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#D7E4F5',
+    marginLeft: 8,
   },
   searchRow: {
     flexDirection: 'row',
@@ -173,6 +201,21 @@ const styles = StyleSheet.create({
     color: '#3E74D6',
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  friendCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D8E7FF',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 12,
+  },
+  friendName: {
+    flex: 1,
+    color: '#0E2740',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
 
