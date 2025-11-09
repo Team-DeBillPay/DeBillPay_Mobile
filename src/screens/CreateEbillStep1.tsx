@@ -18,6 +18,7 @@ const CreateEbillStep1: React.FC = () => {
   const currencies = ['UAH', 'USD', 'EUR'];
   const [openScenario, setOpenScenario] = useState(false);
   const [openCurrency, setOpenCurrency] = useState(false);
+  const [error, setError] = useState('');
 
   return (
     <ScreenWrapper>
@@ -43,12 +44,20 @@ const CreateEbillStep1: React.FC = () => {
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
             <TextInput
-              placeholder="Назва чеку"
-              placeholderTextColor="#6B7A8A"
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
+            placeholder="Назва чеку"
+            placeholderTextColor="#6B7A8A"
+            style={[styles.input, error ? { borderColor: '#D9534F' } : null]}
+            value={name}
+            onChangeText={(v) => {
+                setName(v);
+                if (error) setError('');
+            }}
             />
+            {error ? (
+            <Text style={{ color: '#D9534F', marginBottom: 10, marginLeft: 4 }}>
+                {error}
+            </Text>
+            ) : null}
             <TextInput
               placeholder="Опис чеку"
               placeholderTextColor="#6B7A8A"
@@ -92,9 +101,14 @@ const CreateEbillStep1: React.FC = () => {
             </View>
             <TouchableOpacity
               style={styles.nextBtn}
-              onPress={() =>
-                navigation.navigate('CreateEbillStep2', { name, description, scenario, currency })
-              }
+            onPress={() => {
+                if (!name.trim()) {
+                setError('Введіть назву чеку');
+                return;
+                }
+                setError('');
+                navigation.navigate('CreateEbillStep2', { name, description, scenario, currency });
+            }}
             >
               <Text style={styles.nextText}>Далі</Text>
             </TouchableOpacity>

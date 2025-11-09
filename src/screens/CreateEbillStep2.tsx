@@ -130,14 +130,29 @@ const CreateEbillStep2: React.FC = () => {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.nextBtn}
-              onPress={() => navigation.navigate('CreateEbillStep3', { 
+              onPress={() => {
+                if (participants.length === 0) {
+                alert("Додайте хоча б одного учасника");
+                return;
+                }
+                if ((scenario === "Рівний розподіл" || scenario === "Спільні витрати") && (!mySpend || Number(mySpend) <= 0)) {
+                alert("Введіть суму Ваших витрат");
+                return;
+                }
+                const formattedParticipants = participants.map(p => ({
+                UserId: p.id,
+                Amount: !equalSplit ? Number(p.amount) || 0 : undefined,
+                PaidAmount: 0
+                }));
+                navigation.navigate('CreateEbillStep3', { 
                 name: route.params.name,
                 description: route.params.description,
                 scenario: route.params.scenario,
                 currency: route.params.currency,
-                participants,
+                participants: formattedParticipants,
                 total: Number(mySpend) || 0
-              })}
+                });
+            }}
             >
               <Text style={styles.nextText}>Далі</Text>
             </TouchableOpacity>
