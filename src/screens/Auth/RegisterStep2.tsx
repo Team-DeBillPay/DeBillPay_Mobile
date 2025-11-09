@@ -1,5 +1,8 @@
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useState } from 'react';
 import { Alert, Image, Text } from 'react-native';
+import { RootStackParamList } from '../../../App';
 import { authApi } from '../../api/authApi';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
@@ -8,12 +11,13 @@ import ScreenWrapper from '../../components/ScreenWrapper';
 import { useAuth } from '../../contexts/AuthContext';
 import { handleApiError } from '../../utils/errorHandler';
 
-type Props = { 
-  onNavigate?: (screen: 'login' | 'register1' | 'register2' | 'app') => void;
-  step1Data?: { firstName: string; lastName: string };
-};
+type RegisterStep2RouteProp = RouteProp<RootStackParamList, 'RegisterStep2'>;
+type RegisterStep2NavProp = StackNavigationProp<RootStackParamList, 'RegisterStep2'>;
 
-const RegisterStep2: React.FC<Props> = ({ onNavigate, step1Data }) => {
+const RegisterStep2: React.FC = () => {
+  const route = useRoute<RegisterStep2RouteProp>();
+  const navigation = useNavigation<RegisterStep2NavProp>();
+  const { firstName, lastName } = route.params;
   const [phoneNumber, setPhoneNumber] = useState(''); 
   const [email, setEmail] = useState(''); 
   const [password, setPassword] = useState('');
@@ -31,26 +35,19 @@ const RegisterStep2: React.FC<Props> = ({ onNavigate, step1Data }) => {
       return;
     }
 
-    if (!step1Data) {
-      Alert.alert('Помилка', 'Дані з першого кроку не знайдені');
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const registerData = {
-        ...step1Data,
-        email,
+      await authApi.register({
+        firstName,
+        lastName,
         phoneNumber,
-        password
-      };
-
-      await authApi.register(registerData);
+        email,
+        password,
+      });
 
       const loginResponse = await authApi.login({ email, password });
       await login(loginResponse.token, loginResponse.user);
-      
-      onNavigate?.('app');
+
     } catch (error: any) {
       const userFriendlyError = handleApiError(error);
       Alert.alert('Помилка', userFriendlyError);
@@ -93,6 +90,8 @@ const RegisterStep2: React.FC<Props> = ({ onNavigate, step1Data }) => {
         >
           {isLoading ? 'Реєстрація...' : 'Зареєструватися'}
         </Button>
+
+        <Text style={{ marginTop: 14, color: '#2f67b6ff', textDecorationLine: 'underline' }} onPress={() => navigation.goBack()}>Повернутися назад</Text>
       </Card>
     </ScreenWrapper>
   );

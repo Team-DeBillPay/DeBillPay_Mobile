@@ -1,5 +1,8 @@
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useState } from 'react';
 import { Alert, Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { RootStackParamList } from '../../App';
 import { authApi } from '../api/authApi';
 import Button from '../components/Button';
 import Card from '../components/Card';
@@ -9,11 +12,10 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { useAuth } from '../contexts/AuthContext';
 import { handleApiError } from '../utils/errorHandler';
 
-type Props = {
-  onNavigate?: (screen: 'login' | 'register1' | 'register2' | 'app') => void;
-};
+type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 
-const LoginScreen: React.FC<Props> = ({ onNavigate }) => {
+const LoginScreen: React.FC = () => {
+  const navigation = useNavigation<LoginScreenNavigationProp>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState(''); 
   const [isLoading, setIsLoading] = useState(false);
@@ -28,12 +30,9 @@ const LoginScreen: React.FC<Props> = ({ onNavigate }) => {
     setIsLoading(true);
     try {
       const response = await authApi.login({ email, password });
-      
       await login(response.token, response.user);
-      
-      onNavigate?.('app');
     } catch (error: any) {
-	  const userFriendlyError = handleApiError(error);
+      const userFriendlyError = handleApiError(error);
       Alert.alert('Помилка', userFriendlyError);
     } finally {
       setIsLoading(false);
@@ -66,7 +65,7 @@ const LoginScreen: React.FC<Props> = ({ onNavigate }) => {
 
         <Text style={styles.smallText}>
           Ще немає аккаунта? 
-          <Text style={styles.link} onPress={() => onNavigate?.('register1')}>Зареєструватися</Text>
+          <Text style={styles.link} onPress={() => navigation.navigate('RegisterStep1')}>Зареєструватися</Text>
         </Text>
 
         <Button 
@@ -126,6 +125,7 @@ const styles = StyleSheet.create({
 		color: '#6B7A8A',
 		marginTop: 10,
 		textAlign: 'center',
+    paddingBottom: 6
 	},
 	link: {
 		color: '#134E9F',
