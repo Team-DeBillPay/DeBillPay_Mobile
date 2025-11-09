@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { userApi } from '../api/userApi';
@@ -5,9 +6,8 @@ import ScreenWrapper from '../components/ScreenWrapper';
 import { useAuth } from '../contexts/AuthContext';
 import { handleApiError } from '../utils/errorHandler';
 
-type Props = { onNavigate?: (screen: 'login' | 'register1' | 'register2' | 'app') => void };
-
-const ProfileScreen: React.FC<Props> = ({ onNavigate }) => {
+const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation();
   const { user, login, logout } = useAuth();
 
   const [lastName, setLastName] = useState(user?.lastName || '');
@@ -99,7 +99,6 @@ const saveEdit = async () => {
 
   const handleLogout = () => { 
     logout();
-    onNavigate?.('login');
   };
 
   return (

@@ -16,6 +16,10 @@ export const apiClient = {
     return this.request(url, 'PATCH', data);
   },
 
+  async delete(url: string) {
+    return this.request(url, 'DELETE');
+  },
+
   async request(url: string, method: string, data?: any) {
     const token = await AsyncStorage.getItem('userToken');
     
