@@ -1,8 +1,8 @@
 import ScreenWrapper from '@/components/ScreenWrapper';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RootStackParamList } from '../../App';
 import { userApi } from '../api/userApi';
@@ -14,18 +14,34 @@ const ContactsScreen: React.FC = () => {
   const [friends, setFriends] = useState<any[]>([]);
   const navigation = useNavigation<NavigationProp>();
 
-  useEffect(() => {
-    loadContacts();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadContacts();
+    }, [])
+  );
 
-  const loadContacts = async () => {
-    try {
-      const res = await userApi.getContacts();
-      setFriends(res.data || []);
-    } catch {
-      
-    }
-  };
+const loadContacts = async () => {
+  try {
+    const contacts = await userApi.getContacts();
+
+    const mapped = contacts.map((c: any) => ({
+      id: c.friend.userId,
+      firstName: c.friend.firstName,
+      lastName: c.friend.lastName,
+    }));
+
+    setFriends(mapped);
+  } catch {}
+};
+
+const deleteFriend = async (id: number) => {
+  try {
+    await userApi.deleteFriend(id);
+    loadContacts();
+  } catch {
+    alert("Не вдалося видалити друга");
+  }
+};
 
   return (
     <ScreenWrapper>
@@ -46,7 +62,7 @@ const ContactsScreen: React.FC = () => {
               <Ionicons name="person-add-outline" size={20} color="#0E2740" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8} onPress={() => navigation.navigate('Invitations')}>
               <Ionicons name="mail-outline" size={20} color="#0E2740" />
             </TouchableOpacity>
           </View>
@@ -90,7 +106,7 @@ const ContactsScreen: React.FC = () => {
                     <Ionicons name="person-circle-outline" size={28} color="#0E2740" />
                     <Text style={styles.friendName}>{f.firstName} {f.lastName}</Text>
 
-                    <TouchableOpacity activeOpacity={0.8}>
+                    <TouchableOpacity activeOpacity={0.8} onPress={() => deleteFriend(f.id)}>
                       <Ionicons name="trash-outline" size={22} color="#0E2740" />
                     </TouchableOpacity>
                   </View>

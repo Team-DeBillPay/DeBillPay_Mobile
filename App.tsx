@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import TabNavigator from './src/navigation/TabNavigator';
 import AddFriendScreen from './src/screens/AddFriendScreen';
 import { RegisterStep1, RegisterStep2 } from './src/screens/Auth';
+import InvitationsScreen from './src/screens/InvitationsScreen';
 import LoginScreen from './src/screens/LoginScreen';
 
 export type RootStackParamList = {
@@ -14,6 +15,7 @@ export type RootStackParamList = {
   RegisterStep2: { firstName: string; lastName: string };
   Tabs: undefined;
   AddFriend: undefined;
+  Invitations: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -39,6 +41,7 @@ const { user, isLoading } = useAuth();
           <>
             <Stack.Screen name="Tabs" component={TabNavigator} />
             <Stack.Screen name="AddFriend" component={AddFriendScreen} />
+            <Stack.Screen name="Invitations" component={InvitationsScreen} />  
           </>
         )}
 
