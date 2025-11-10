@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import moment from 'moment';
 import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -6,6 +7,7 @@ import { ebillApi } from '../api/ebillApi';
 import ScreenWrapper from '../components/ScreenWrapper';
 
 const ChecksScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const [checks, setChecks] = useState<any[]>([]);
   const [search, setSearch] = useState('');
 
@@ -13,26 +15,29 @@ const ChecksScreen: React.FC = () => {
     loadChecks();
   }, []);
 
-  const loadChecks = async () => {
-    try {
-      const res = await ebillApi.getEbills();
-      setChecks(res);
-    } catch {
-      setChecks([]);
-    }
-  };
+const loadChecks = async () => {
+  try {
+    const res = await ebillApi.getEbills();
+    setChecks((res ?? []).sort(
+      (a:any, b:any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    ));
+  } catch (e) {
+    setChecks([]);
+  }
+};
 
   const filteredChecks = checks.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getStatusColor = (participants: any[]) => {
-    const total = participants.length;
-    const paid = participants.filter(p => p.paymentStatus === 'погашений').length;
-    if (paid === 0) return '#E94B4B';
-    if (paid < total) return '#F6D959'; 
-    return '#6BCB71';                   
-  };
+const getStatusColor = (participants: any[]) => {
+  const total = participants.length;
+  const fullPaid = participants.filter(p => p.paymentStatus === 'погашений').length;
+  const partial = participants.filter(p => p.paymentStatus === 'частково погашений').length;
+  if (fullPaid === total) return '#6BCB71';
+  if (partial > 0) return '#F6D959';
+  return '#E94B4B';                        
+};
 
   return (
     <ScreenWrapper>
@@ -74,7 +79,7 @@ const ChecksScreen: React.FC = () => {
                   </View>
                 </View>
                 <Text style={styles.name}>{c.name}</Text>
-                <TouchableOpacity style={styles.detailBtn} activeOpacity={0.85}>
+                <TouchableOpacity style={styles.detailBtn} activeOpacity={0.85} onPress={() => navigation.navigate('CheckDetails', { ebillId: c.ebillId })}>
                   <Text style={styles.detailText}>Детальніше</Text>
                 </TouchableOpacity>
               </View>
