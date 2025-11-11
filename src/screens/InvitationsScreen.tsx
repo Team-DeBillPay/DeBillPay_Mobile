@@ -197,7 +197,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    opacity: 0.8
   },
   acceptText: { 
     color: '#0E2740', 

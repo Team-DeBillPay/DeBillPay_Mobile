@@ -1,26 +1,176 @@
 import ScreenWrapper from '@/components/ScreenWrapper';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import React from 'react';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { RootStackParamList } from '../../App';
+import { ebillApi } from '../api/ebillApi';
+import { userApi } from '../api/userApi';
+import { useAuth } from '../contexts/AuthContext';
 
-type NavigationProp = StackNavigationProp<RootStackParamList, 'CheckDetails'>;
+type BackendParticipantDto = {
+    userId: number;
+    paymentStatus: 'погашений' | 'частково погашений' | 'непогашений' | string;
+    assignedAmount: number;
+    paidAmount: number;
+    balance: number;
+    isAdminRights: boolean;
+};
+
+type EbillDto = {
+    ebillId: number;
+    name: string;
+    currency?: string;
+    amountOfDept: number;
+    description?: string;
+    scenario: string;
+    status: 'закритий' | 'активний' | string;
+    createdAt: string;
+    updatedAt: string;
+    participants: BackendParticipantDto[];
+};
+
+type ContactDto = {
+    contactId: number;
+    status: string;
+    friend: {
+        userId: number;
+        firstName: string;
+        lastName: string;
+        email?: string;
+        phoneNumber?: string;
+    };
+};
+
+type Member = {
+    id: number;
+    name: string;
+    assigned: number;
+    paid: number;
+    spent?: number;
+    debt: number;
+    status: 'погашений' | 'частково погашений' | 'непогашений' | string;
+    isAdmin: boolean;
+};
+
+type RouteParams = { ebillId: number };
 
 const CheckDetailsScreen: React.FC = () => {
-    const navigation = useNavigation<NavigationProp>();
+    const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const { ebillId } = route.params as RouteParams;
+    const { user } = useAuth();
 
-    const ebill = {
-        title: 'Пікнік',
-        description: 'За їжу яку ви їли',
-        organizer: 'Денис (Я)',
-        total: 1000,
-        members: ['Віктор O.', 'Дмитро К.', 'Людмила O.', 'Влад К.'],
-        share: 250,
-        paid: 0,
-        debt: 250,
+    const [ebill, setEbill] = useState<EbillDto | null>(null);
+    const [members, setMembers] = useState<Member[]>([]);
+    const [organizerName, setOrganizerName] = useState<string>('—');
+    const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+
+    const normalizeName = (first?: string, last?: string) =>
+        `${last ?? ''} ${first?.[0] ?? ''}.`.trim();
+
+    const formatMoney = (v: number | undefined) =>
+        `${(v ?? 0).toString()} ${ebill?.currency || 'грн'}`;
+
+    useEffect(() => {
+        void loadDetails();
+    }, []);
+
+    const loadDetails = async () => {
+        try {
+            const data = (await ebillApi.getEbillById(ebillId)) as EbillDto;
+            setEbill(data);
+
+            const contacts = (await userApi.getContacts()) as ContactDto[];
+            const isShared = data.scenario === 'спільні витрати';
+
+            const allMembers: Member[] = (data.participants || []).map((p: BackendParticipantDto) => {
+                const isMe = p.userId === user?.id;
+                const contact = contacts.find((c) => c.friend.userId === p.userId);
+
+                let name = `User #${p.userId}`;
+                if (isMe && user) name = `${user.lastName} ${user.firstName?.[0]}. (Я)`;
+                else if (contact) name = normalizeName(contact.friend.firstName, contact.friend.lastName);
+
+                const paid = isShared ? p.balance : p.paidAmount;
+                const spent = isShared ? p.paidAmount : undefined;
+                const debt = Math.max(p.assignedAmount - (paid ?? 0), 0);
+
+                return {
+                    id: p.userId,
+                    name,
+                    assigned: p.assignedAmount,
+                    paid,
+                    spent,
+                    debt,
+                    status: p.paymentStatus,
+                    isAdmin: p.isAdminRights,
+                };
+            });
+
+            const org = allMembers.find((m) => m.isAdmin);
+            setOrganizerName(org?.name ?? '—');
+
+            const visibleMembers: Member[] =
+                data.scenario === 'спільні витрати' ? allMembers : allMembers.filter((m) => !m.isAdmin);
+
+            setMembers(visibleMembers);
+
+            const defaultSelected =
+                visibleMembers.find((m) => m.id === user?.id)?.id ??
+                visibleMembers[0]?.id ??
+                org?.id ??
+                null;
+
+            setSelectedMemberId(defaultSelected);
+        } catch (e) {
+            console.log('Error loading ebill:', e);
+            navigation.goBack();
+        }
     };
+
+    const selectedMember: Member | null = useMemo(() => {
+        if (selectedMemberId == null) return null;
+        return members.find((m) => m.id === selectedMemberId) ?? null;
+    }, [members, selectedMemberId]);
+
+    const gridItems: Array<Member | { placeholder: true; key: string }> = useMemo(() => {
+        const items: Array<Member | { placeholder: true; key: string }> = [...members];
+        const remainder = members.length % 3;
+        if (remainder !== 0) {
+            const need = 3 - remainder;
+            for (let i = 0; i < need; i++) items.push({ placeholder: true, key: `ph-${i}` });
+        }
+        return items;
+    }, [members]);
+
+    if (!ebill) {
+        return (
+            <ScreenWrapper>
+                <Text style={{ textAlign: 'center', color: '#0E2740', marginTop: 120 }}>
+                    Завантаження...
+                </Text>
+            </ScreenWrapper>
+        );
+    }
+
+    const allPaid = members.length > 0 && members.every((m) => m.status === 'погашений');
+    const hasPartial = members.some((m) => m.status === 'частково погашений');
+    const allUnpaid = members.length > 0 && members.every((m) => m.status === 'непогашений');
+
+    let progressText = 'Не погашений';
+    let progressBg = '#FFACAE';
+    if (allPaid) { progressText = 'Повністю погашений'; progressBg = '#E5F9EC'; }
+    else if (hasPartial) { progressText = 'Частково погашений'; progressBg = '#FEEBBB'; }
+
+    const topStatusText = ebill.status === 'закритий' ? 'Закритий' : 'Активний';
+    const isMySelected = selectedMember && user ? selectedMember.id === user.id : false;
+
+    const infoAssigned = selectedMember?.assigned ?? 0;
+    const infoSpent = selectedMember?.spent ?? undefined;
+    const infoPaid = selectedMember?.paid ?? 0;
+    const infoDebt = selectedMember?.debt ?? 0;
+    const isSharedScenario = ebill.scenario === 'спільні витрати';
 
     return (
         <ScreenWrapper>
@@ -34,7 +184,7 @@ const CheckDetailsScreen: React.FC = () => {
 
             <View style={styles.outerCard}>
                 <View style={styles.innerCard}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <View style={styles.topBar}>
                         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
                             <Ionicons name="arrow-back" size={24} color="#0E2740" />
                         </TouchableOpacity>
@@ -42,7 +192,7 @@ const CheckDetailsScreen: React.FC = () => {
                         <TouchableOpacity
                             style={styles.headerIconBtn}
                             activeOpacity={0.8}
-                            onPress={() => console.log('Открыть настройки чека')}
+                            onPress={() => console.log('Налаштування чеку')}
                         >
                             <Ionicons name="settings-outline" size={20} color="#0E2740" />
                         </TouchableOpacity>
@@ -50,64 +200,121 @@ const CheckDetailsScreen: React.FC = () => {
 
                     <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
                         <Text style={styles.title}>Про чек</Text>
-                        <Text style={styles.billName}>Назва: “{ebill.title}”</Text>
+                        <Text style={styles.billName}>Назва: “{ebill.name}”</Text>
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Опис:</Text>
-                            <Text style={styles.value}>{ebill.description}</Text>
+                            <Text style={styles.value}>{ebill.description || '—'}</Text>
                         </View>
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Статус:</Text>
                             <View style={styles.statusCell}>
                                 <View style={styles.statusActive}>
-                                    <Text style={styles.statusText}>Активний</Text>
+                                    <Text style={styles.statusText}>{topStatusText}</Text>
                                 </View>
-                                <View style={styles.statusPartial}>
-                                    <Text style={styles.statusTextPartial}>Частково погашений</Text>
+                                <View style={[styles.statusPartial, { backgroundColor: progressBg }]}>
+                                    <Text style={styles.statusTextPartial}>{progressText}</Text>
                                 </View>
                             </View>
                         </View>
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Сценарій:</Text>
-                            <Text style={styles.value}>Індивідуальні суми</Text>
+                            <Text style={styles.value}>{ebill.scenario}</Text>
                         </View>
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Організатор:</Text>
-                            <Text style={styles.value}>{ebill.organizer}</Text>
+                            <Text style={styles.value}>{organizerName}</Text>
                         </View>
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Загальна сума:</Text>
-                            <Text style={styles.value}>{ebill.total} грн</Text>
+                            <Text style={styles.value}>{formatMoney(ebill.amountOfDept)}</Text>
                         </View>
 
                         <Text style={[styles.label, { marginTop: 16 }]}>Учасники:</Text>
-                        <View style={styles.membersList}>
-                            {ebill.members.map((m, i) => (
-                                <View key={i} style={styles.memberBtn}>
-                                    <Text style={styles.memberText}>{m}</Text>
-                                </View>
-                            ))}
+
+                        <View style={styles.membersGrid}>
+                            {gridItems.map((item, idx) => {
+                                const isPlaceholder = (item as any).placeholder === true;
+                                const key = isPlaceholder ? (item as any).key : (item as Member).id.toString();
+                                const isSelected = !isPlaceholder && (item as Member).id === selectedMemberId;
+
+                                const isThird = (idx + 1) % 3 === 0;
+                                const cardStyle: StyleProp<ViewStyle> = [
+                                    styles.memberBtn,
+                                    {
+                                        marginRight: isThird ? 0 : 8,
+                                        marginBottom: 8,
+                                        flexBasis: '31%',
+                                        maxWidth: '31%',
+                                        opacity: isPlaceholder ? 0 : 1,
+                                        borderWidth: isSelected ? 2 : 0,
+                                        borderColor: isSelected ? '#0E2740' : 'transparent',
+                                    },
+                                ];
+
+                                if (isPlaceholder) return <View key={key} style={cardStyle} />;
+
+                                const m = item as Member;
+                                return (
+                                    <TouchableOpacity
+                                        key={key}
+                                        style={cardStyle}
+                                        activeOpacity={0.8}
+                                        onPress={() => setSelectedMemberId(m.id)}
+                                    >
+                                        <Text style={styles.memberText}>{m.name}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
 
                         <View style={styles.box}>
                             <View style={styles.boxRow}>
-                                <Text style={styles.boxLabel}>Його/її частка:</Text>
-                                <View style={styles.valueBox}><Text style={styles.boxValue}>{ebill.share} грн</Text></View>
+                                <Text style={styles.boxLabel}>
+                                    {isMySelected ? 'Моя частка:' : 'Його/її частка:'}
+                                </Text>
+                                <View style={styles.valueBox}>
+                                    <Text style={styles.boxValue}>{formatMoney(infoAssigned)}</Text>
+                                </View>
                             </View>
+
+                            {isSharedScenario && (
+                                <View style={styles.boxRow}>
+                                    <Text style={styles.boxLabel}>Витратив:</Text>
+                                    <View style={styles.valueBox}>
+                                        <Text style={styles.boxValue}>{formatMoney(infoSpent)}</Text>
+                                    </View>
+                                </View>
+                            )}
 
                             <View style={styles.boxRow}>
                                 <Text style={styles.boxLabel}>Сплатив:</Text>
-                                <View style={styles.valueBox}><Text style={styles.boxValue}>{ebill.paid} грн</Text></View>
+                                <View style={styles.valueBox}>
+                                    <Text style={styles.boxValue}>{formatMoney(infoPaid)}</Text>
+                                </View>
                             </View>
 
                             <View style={styles.boxRow}>
                                 <Text style={styles.boxLabel}>Борг:</Text>
-                                <View style={styles.valueBox}><Text style={styles.boxValue}>{ebill.debt} грн</Text></View>
+                                <View style={styles.valueBox}>
+                                    <Text style={styles.boxValue}>{formatMoney(infoDebt)}</Text>
+                                </View>
                             </View>
+
+                            {isMySelected && (
+                                <TouchableOpacity
+                                    activeOpacity={0.85}
+                                    style={styles.payBtn}
+                                    onPress={() => console.log('Оплатити')}
+                                >
+                                    <Ionicons name="card-outline" size={18} color="#0E2740" style={{ marginRight: 6 }} />
+                                    <Text style={styles.payBtnText}>Оплатити</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     </ScrollView>
                 </View>
@@ -142,8 +349,11 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         paddingHorizontal: 14,
     },
-    backBtn: {
-        marginBottom: 10
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
     },
     title: {
         fontSize: 22,
@@ -156,7 +366,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#0E2740',
         textAlign: 'center',
-        marginBottom: 18
+        marginBottom: 18,
     },
     row: {
         flexDirection: 'row',
@@ -180,16 +390,16 @@ const styles = StyleSheet.create({
         flexShrink: 1,
         alignItems: 'flex-end',
         gap: 6,
-        maxWidth: '65%',
+        maxWidth: '65%'
     },
     statusActive: {
-        backgroundColor: '#E0F8D3',
+        backgroundColor: '#7BE495',
         paddingVertical: 4,
         paddingHorizontal: 10,
         borderRadius: 8,
     },
     statusText: {
-        color: '#2E8B00',
+        color: '#ffffffff',
         fontSize: 13,
         fontWeight: '600'
     },
@@ -200,23 +410,20 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     statusTextPartial: {
-        color: '#AF8400',
+        color: '#0E2740',
         fontSize: 13,
         fontWeight: '600'
     },
-    membersList: {
+    membersGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        marginTop: 8,
+        alignItems: 'flex-start'
     },
     memberBtn: {
-        width: '31%',
         backgroundColor: '#B6CDFF',
         paddingVertical: 6,
         borderRadius: 6,
         alignItems: 'center',
-        marginBottom: 8,
     },
     memberText: {
         color: '#0E2740',
@@ -233,7 +440,7 @@ const styles = StyleSheet.create({
     boxRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'center'
     },
     boxLabel: {
         color: '#0E2740',
@@ -243,17 +450,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFFFFF',
         paddingVertical: 6,
         paddingHorizontal: 12,
-        borderRadius: 8,
+        borderRadius: 8
     },
     boxValue: {
         color: '#0E2740',
         fontWeight: '600'
-    },
-    topIconsRow: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        width: '100%',
-        marginBottom: 4,
     },
     headerIconBtn: {
         width: 34,
@@ -264,6 +465,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 1,
         borderColor: '#D7E4F5',
+    },
+    payBtn: {
+        marginTop: 8,
+        alignSelf: 'flex-end',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#456DB4',
+        borderWidth: 1,
+        borderColor: '#D7E4F5',
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+    },
+    payBtnText: {
+        color: '#ffffffff',
+        fontWeight: '700'
     },
 });
 
