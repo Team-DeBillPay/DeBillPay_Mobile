@@ -25,9 +25,9 @@ export type RootStackParamList = {
   CreateEbillStep1: undefined;
   CreateEbillStep2: { name: string; description: string; scenario: string; currency: string };
   CreateEbillStep3: { name: string; description: string; scenario: string; currency: string; participants: any[]; total?: number };
-  CheckDetails: { ebillId: number };
+  CheckDetails: { ebillId: number; paymentSuccess?: boolean; };
   CheckHistory: { ebillId: number };
-  WebViewPayment: { data: string; signature: string; onSuccess?: () => void; onFailure?: () => void; };
+  WebViewPayment: { data: string; signature: string; onSuccess?: () => void; onFailure?: () => void; ebillId: number; };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();

@@ -1,7 +1,7 @@
 import PaymentModal from '@/components/PaymentModal';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import {
@@ -111,50 +111,66 @@ const CheckDetailsScreen: React.FC = () => {
         `${(v ?? 0).toString()} ${ebill?.currency || 'грн'}`;
 
     useEffect(() => {
-        void loadDetails();
-    }, []);
+    if (route.params?.paymentSuccess) {
+        loadDetails();
+        Alert.alert('Успіх', 'Оплата пройшла успішно!');
+        
+        navigation.setParams({ paymentSuccess: undefined });
+    }
+    }, [route.params]);
+
+    useEffect(() => {
+    void loadDetails();
+    }, [ebillId]); 
+
+    useFocusEffect(
+  React.useCallback(() => {
+    loadDetails();
+    return () => {
+    };
+  }, [ebillId])
+);
 
     const loadDetails = async () => {
-        setLoading(true);
-        try {
-            const data = (await ebillApi.getEbillById(ebillId)) as EbillDto;
-            setEbill(data);
+    setLoading(true);
+    try {
+        const data = (await ebillApi.getEbillById(ebillId)) as EbillDto;
+        setEbill(data);
 
-            setEditedTotal(data.amountOfDept ?? null);
+        setEditedTotal(data.amountOfDept ?? null);
+        setEditedName(data.name ?? '');
+        setEditedDescription(data.description ?? '');
 
-            setEditedName(data.name ?? '');
-            setEditedDescription(data.description ?? '');
+        const userContacts = (await userApi.getContacts()) as ContactDto[];
+        setContacts(userContacts || []);
 
-            const userContacts = (await userApi.getContacts()) as ContactDto[];
-            setContacts(userContacts || []);
+        const isShared = data.scenario === 'спільні витрати';
 
-            const isShared = data.scenario === 'спільні витрати';
+        const allMembers: Member[] = (data.participants || []).map((p: BackendParticipantDto) => {
+        const isMe = p.userId === user?.id;
+        const contact = userContacts.find((c) => c.friend.userId === p.userId);
 
-            const allMembers: Member[] = (data.participants || []).map((p: BackendParticipantDto) => {
-                const isMe = p.userId === user?.id;
-                const contact = userContacts.find((c) => c.friend.userId === p.userId);
+        let name = `User #${p.userId}`;
+        if (isMe && user) name = `${user.lastName} ${user.firstName?.[0]}. (Я)`;
+        else if (contact) name = normalizeName(contact.friend.firstName, contact.friend.lastName);
 
-                let name = `User #${p.userId}`;
-                if (isMe && user) name = `${user.lastName} ${user.firstName?.[0]}. (Я)`;
-                else if (contact) name = normalizeName(contact.friend.firstName, contact.friend.lastName);
+        const paid = isShared ? p.balance : p.paidAmount;
+        const spent = isShared ? p.paidAmount : undefined;
+        const debt = p.balance;
 
-                const paid = isShared ? p.balance : p.paidAmount;
-                const spent = isShared ? p.paidAmount : undefined;
-                const debt = Math.max(p.assignedAmount - (paid ?? 0), 0);
-
-                return {
-                    participantId: p.participantId,
-                    id: p.userId,
-                    name,
-                    assigned: p.assignedAmount,
-                    paid,
-                    spent,
-                    debt,
-                    status: p.paymentStatus,
-                    isAdmin: p.isAdminRights,
-                    isEditor: p.isEditorRights,
-                };
-            });
+        return {
+            participantId: p.participantId,
+            id: p.userId,
+            name,
+            assigned: p.assignedAmount,
+            paid,
+            spent,
+            debt,
+            status: p.paymentStatus,
+            isAdmin: p.isAdminRights,
+            isEditor: p.isEditorRights,
+        };
+        });
 
             const org = allMembers.find((m) => m.isAdmin);
             setOrganizerName(org?.name ?? '—');
@@ -843,10 +859,6 @@ const CheckDetailsScreen: React.FC = () => {
                 currency={ebill?.currency || 'грн'}
                 maxAmount={selectedMember?.debt || 0}
                 currentBalance={selectedMember?.debt || 0}
-                onPaymentSuccess={() => {
-                    loadDetails();
-                    Alert.alert('Успіх', 'Оплата пройшла успішно!');
-                }}
             />
 
         </ScreenWrapper>

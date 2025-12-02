@@ -1,37 +1,56 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 
-type RouteParams = {
-  data: string;
-  signature: string;
-  onSuccess?: () => void;
-  onFailure?: () => void;
+type RootStackParamList = {
+  WebViewPayment: {
+    data: string;
+    signature: string;
+    ebillId: number;
+  };
+  CheckDetails: {
+    ebillId: number;
+    paymentSuccess?: boolean;
+  };
 };
 
+type WebViewPaymentRouteProp = RouteProp<RootStackParamList, 'WebViewPayment'>;
+
 const WebViewPaymentScreen: React.FC = () => {
-  const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>();
-  const navigation = useNavigation();
-  const { data, signature, onSuccess, onFailure } = route.params;
+  const route = useRoute<WebViewPaymentRouteProp>();
+  const navigation = useNavigation<any>();
+  const { data, signature, ebillId } = route.params;
   const webViewRef = useRef<WebView>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
 
   useEffect(() => {
     const backAction = () => {
+      if (paymentCompleted) {
+        navigation.goBack();
+        return true;
+      }
+      
       Alert.alert(
         'Скасувати оплату?',
         'Ви впевнені, що хочете скасувати оплату?',
         [
           {
-            text: 'Продовжити',
+            text: 'Продовжити оплату',
             style: 'cancel',
           },
           {
             text: 'Скасувати',
             onPress: () => {
               navigation.goBack();
-              onFailure?.();
             },
             style: 'destructive',
           },
@@ -46,38 +65,72 @@ const WebViewPaymentScreen: React.FC = () => {
     );
 
     return () => backHandler.remove();
-  }, [navigation]);
+  }, [navigation, paymentCompleted]);
 
   const handleNavigationStateChange = (navState: WebViewNavigation) => {
     setIsLoading(navState.loading);
     
     const url = navState.url.toLowerCase();
-    
+    console.log('Current URL:', url);
+
     if (url.includes('success') || 
         url.includes('result') || 
         url.includes('payment-success') ||
+        url.includes('checkout/success') ||
         (url.includes('liqpay') && (url.includes('status=success') || url.includes('status=wait_accept')))) {
 
-      setTimeout(() => {
-        onSuccess?.();
-        navigation.goBack();
-      }, 1500);
+      if (!paymentCompleted) {
+        setPaymentCompleted(true);
+        
+        setTimeout(() => {
+          Alert.alert(
+            'Успіх!',
+            'Оплата пройшла успішно!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  navigation.reset({
+                    index: 0,
+                    routes: [
+                      { 
+                        name: 'CheckDetails', 
+                        params: { 
+                          ebillId: ebillId,
+                          paymentSuccess: true 
+                        } 
+                      }
+                    ],
+                  });
+                }
+              }
+            ]
+          );
+        }, 1000);
+      }
     }
     
     if (url.includes('failure') || 
         url.includes('error') || 
         url.includes('reject') ||
+        url.includes('checkout/failure') ||
         (url.includes('liqpay') && url.includes('status=failure'))) {
       
-      Alert.alert('Помилка', 'Оплата не пройшла. Спробуйте ще раз.');
-      onFailure?.();
-      navigation.goBack();
+      Alert.alert(
+        'Помилка',
+        'Оплата не пройшла. Спробуйте ще раз.',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
     }
   };
 
   const handleError = () => {
     Alert.alert('Помилка', 'Не вдалося завантажити платіжну сторінку');
-    onFailure?.();
     navigation.goBack();
   };
 
@@ -98,7 +151,7 @@ const WebViewPaymentScreen: React.FC = () => {
           width: 100%;
           height: 100%;
           overflow: hidden;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: #F6F9FF;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           display: flex;
           flex-direction: column;
@@ -110,10 +163,9 @@ const WebViewPaymentScreen: React.FC = () => {
           width: 100%;
           max-width: 400px;
           padding: 20px;
-          background: rgba(255, 255, 255, 0.95);
+          background: #FFFFFF;
           border-radius: 20px;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-          backdrop-filter: blur(10px);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
           animation: fadeIn 0.5s ease-out;
         }
         
@@ -123,28 +175,20 @@ const WebViewPaymentScreen: React.FC = () => {
         }
         
         .loader-spinner {
-          width: 60px;
-          height: 60px;
-          border: 5px solid #f3f3f3;
-          border-top: 5px solid #456DB4;
+          width: 50px;
+          height: 50px;
+          border: 4px solid #E6F1FF;
+          border-top: 4px solid #456DB4;
           border-radius: 50%;
           animation: spin 1s linear infinite;
           margin: 0 auto 20px;
         }
         
         .loader-text {
-          color: #456DB4;
-          font-size: 18px;
-          font-weight: 600;
-          margin-top: 20px;
-        }
-        
-        .status-message {
-          text-align: center;
-          padding: 30px;
           color: #0E2740;
           font-size: 16px;
-          line-height: 1.5;
+          fontWeight: 600;
+          margin-top: 20px;
         }
         
         @keyframes spin {
@@ -159,7 +203,7 @@ const WebViewPaymentScreen: React.FC = () => {
         
         @media (max-width: 480px) {
           .container {
-            margin: 10px;
+            margin: 20px;
             padding: 15px;
           }
         }
@@ -169,7 +213,7 @@ const WebViewPaymentScreen: React.FC = () => {
       <div class="container">
         <div class="loader">
           <div class="loader-spinner"></div>
-          <div class="loader-text">Підготовка платіжної сторінки...</div>
+          <div class="loader-text">Перенаправлення на платіжну сторінку...</div>
         </div>
       </div>
       
@@ -179,21 +223,11 @@ const WebViewPaymentScreen: React.FC = () => {
       </form>
       
       <script>
-        // Ждем загрузки DOM
+        // Автоматически отправляем форму после загрузки
         document.addEventListener('DOMContentLoaded', function() {
-          // Показываем анимацию загрузки
           setTimeout(function() {
-            // Отправляем форму
             document.getElementById('liqpayForm').submit();
-          }, 800);
-        });
-        
-        // Обработка сообщений от React Native
-        window.addEventListener('message', function(event) {
-          if (event.data === 'closeWebView') {
-            // Закрыть WebView
-            window.ReactNativeWebView.postMessage('CLOSE');
-          }
+          }, 500);
         });
       </script>
     </body>
@@ -202,11 +236,6 @@ const WebViewPaymentScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#456DB4" />
-        </View>
-      )}
       <WebView
         ref={webViewRef}
         source={{ html: htmlContent }}
@@ -220,15 +249,19 @@ const WebViewPaymentScreen: React.FC = () => {
         renderLoading={() => (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#456DB4" />
+            <Text style={styles.loadingText}>Завантаження платіжної сторінки...</Text>
           </View>
         )}
         mixedContentMode="always"
-        thirdPartyCookiesEnabled={true}
-        allowUniversalAccessFromFileURLs={true}
         allowsBackForwardNavigationGestures={false}
-        allowsInlineMediaPlayback={true}
-        mediaPlaybackRequiresUserAction={false}
       />
+      
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#456DB4" />
+          <Text style={styles.overlayText}>Обробка оплати...</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -251,6 +284,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F6F9FF',
   },
+  loadingText: {
+    marginTop: 20,
+    color: '#0E2740',
+    fontSize: 16,
+    fontWeight: '500',
+  },
   loadingOverlay: {
     position: 'absolute',
     top: 0,
@@ -259,8 +298,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     zIndex: 1000,
+  },
+  overlayText: {
+    marginTop: 20,
+    color: '#456DB4',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

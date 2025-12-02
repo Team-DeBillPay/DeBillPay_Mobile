@@ -42,63 +42,57 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     const [error, setError] = useState<string | null>(null);
 
     const handlePayment = async () => {
-        try {
-            setError(null);
-            setIsProcessing(true);
+  try {
+    setError(null);
+    setIsProcessing(true);
 
-            let amount: number;
+    let amount: number;
 
-            if (selectedOption === 'full') {
-                amount = maxAmount;
-            } else if (selectedOption === 'partial' && customAmount) {
-                amount = parseFloat(customAmount);
+    if (selectedOption === 'full') {
+      amount = maxAmount;
+    } else if (selectedOption === 'partial' && customAmount) {
+      amount = parseFloat(customAmount);
+      
+      if (isNaN(amount) || amount <= 0) {
+        setError('Введіть коректну суму');
+        setIsProcessing(false);
+        return;
+      }
+      
+      if (amount > maxAmount) {
+        setError(`Сума не може перевищувати ${maxAmount.toFixed(2)} ${currency}`);
+        setIsProcessing(false);
+        return;
+      }
+    } else {
+      setError('Оберіть спосіб оплати');
+      setIsProcessing(false);
+      return;
+    }
 
-                if (isNaN(amount) || amount <= 0) {
-                    setError('Введіть коректну суму');
-                    setIsProcessing(false);
-                    return;
-                }
-
-                if (amount > maxAmount) {
-                    setError(`Сума не може перевищувати ${maxAmount.toFixed(2)} ${currency}`);
-                    setIsProcessing(false);
-                    return;
-                }
-            } else {
-                setError('Оберіть спосіб оплати');
-                setIsProcessing(false);
-                return;
-            }
-
-            const request = {
-                ebillId,
-                amount: amount,
-            };
-
-            const response = await paymentApi.createPayment(request);
-
-            navigation.navigate('WebViewPayment', {
-                data: response.data,
-                signature: response.signature,
-                onSuccess: () => {
-                    onClose();
-                    onPaymentSuccess?.();
-                    Alert.alert('Успіх', 'Оплата пройшла успішно!');
-                },
-                onFailure: () => {
-                    Alert.alert('Помилка', 'Щось пішло не так при оплаті');
-                }
-            });
-
-        } catch (err: any) {
-            console.error('Payment error:', err);
-            const errorMessage = err.response?.data?.message || err.message || 'Не вдалося створити платіж';
-            setError(errorMessage);
-            Alert.alert('Помилка', errorMessage);
-        } finally {
-            setIsProcessing(false);
-        }
+    const request = {
+      ebillId,
+      amount: amount,
     };
+
+    const response = await paymentApi.createPayment(request);
+    
+    navigation.navigate('WebViewPayment', {
+      data: response.data,
+      signature: response.signature,
+      ebillId: ebillId,
+    });
+
+    onClose();
+
+  } catch (err: any) {
+    console.error('Payment error:', err);
+    const errorMessage = err.response?.data?.message || err.message || 'Не вдалося створити платіж';
+    setError(errorMessage);
+    Alert.alert('Помилка', errorMessage);
+    setIsProcessing(false);
+  }
+};
 
     const handleAmountChange = (text: string) => {
         const cleaned = text.replace(/[^0-9.]/g, '');
