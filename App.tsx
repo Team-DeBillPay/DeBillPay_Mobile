@@ -13,6 +13,7 @@ import CreateEbillStep2 from './src/screens/CreateEbillStep2';
 import CreateEbillStep3 from './src/screens/CreateEbillStep3';
 import InvitationsScreen from './src/screens/InvitationsScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import WebViewPaymentScreen from './src/screens/WebViewPaymentScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -26,12 +27,13 @@ export type RootStackParamList = {
   CreateEbillStep3: { name: string; description: string; scenario: string; currency: string; participants: any[]; total?: number };
   CheckDetails: { ebillId: number };
   CheckHistory: { ebillId: number };
+  WebViewPayment: { data: string; signature: string; onSuccess?: () => void; onFailure?: () => void; };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 const AppContent: React.FC = () => {
-const { user, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
 
   if (isLoading) {
     return null;
@@ -39,7 +41,7 @@ const { user, isLoading } = useAuth();
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade'  }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
 
         {!user ? (
           <>
@@ -51,12 +53,27 @@ const { user, isLoading } = useAuth();
           <>
             <Stack.Screen name="Tabs" component={TabNavigator} />
             <Stack.Screen name="AddFriend" component={AddFriendScreen} />
-            <Stack.Screen name="Invitations" component={InvitationsScreen} /> 
+            <Stack.Screen name="Invitations" component={InvitationsScreen} />
             <Stack.Screen name="CreateEbillStep1" component={CreateEbillStep1} />
             <Stack.Screen name="CreateEbillStep2" component={CreateEbillStep2} />
             <Stack.Screen name="CreateEbillStep3" component={CreateEbillStep3} />
             <Stack.Screen name="CheckDetails" component={CheckDetailsScreen} />
             <Stack.Screen name="CheckHistory" component={CheckHistoryScreen} />
+            <Stack.Screen
+              name="WebViewPayment"
+              component={WebViewPaymentScreen}
+              options={{
+                headerShown: true,
+                title: 'Оплата LiqPay',
+                headerStyle: {
+                  backgroundColor: '#456DB4',
+                },
+                headerTintColor: '#FFFFFF',
+                headerTitleStyle: {
+                  fontWeight: '600',
+                },
+              }}
+            />
           </>
         )}
 
