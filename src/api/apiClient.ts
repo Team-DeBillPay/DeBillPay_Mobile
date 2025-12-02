@@ -12,6 +12,10 @@ export const apiClient = {
     return this.request(url, 'POST', data);
   },
 
+  async put(url: string, data?: any) {
+    return this.request(url, 'PUT', data);
+  },
+
   async patch(url: string, data?: any) {
     return this.request(url, 'PATCH', data);
   },

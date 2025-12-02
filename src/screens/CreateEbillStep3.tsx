@@ -6,21 +6,17 @@ import React, { useState } from 'react';
 import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RootStackParamList } from '../../App';
 import { ebillApi } from '../api/ebillApi';
+import { useAuth } from '../contexts/AuthContext';
 
 type NavProp = StackNavigationProp<RootStackParamList, 'CreateEbillStep3'>;
 
 const CreateEbillStep3: React.FC = () => {
     const navigation = useNavigation<NavProp>();
     const route = useRoute<any>();
+    const { user } = useAuth();
     const { name, description, scenario, currency, participants, total } = route.params;
     const [card, setCard] = useState('');
-
-    type ParticipantDto = {
-        UserId: number;
-        Amount?: number;
-        PaidAmount?: number;
-    };
-
+    
     const createBill = async () => {
         const cleanCard = card.replace(/\s/g, '');
 
@@ -29,17 +25,41 @@ const CreateEbillStep3: React.FC = () => {
             return;
         }
 
+        let organizerEntry = null;
+
+        if (scenario === "Індивідуальні суми") {
+            organizerEntry = {
+                UserId: user?.id,
+                Amount: 0,
+                PaidAmount: 0
+            };
+        }
+
+        if (scenario === "Спільні витрати") {
+            organizerEntry = {
+                UserId: user?.id,
+                Amount: total,
+                PaidAmount: total
+            };
+        }
+
+        const otherParticipants = participants.map((p: any) => ({
+            UserId: p.UserId,
+            Amount: p.Amount ?? 0,
+            PaidAmount: p.PaidAmount ?? 0
+        }));
+
+        const finalParticipants = organizerEntry
+            ? [organizerEntry, ...otherParticipants]
+            : otherParticipants;
+
         const dto = {
             Name: name,
             Description: description,
             Scenario: scenario,
             Currency: currency,
             AmountOfDept: total,
-            Participants: participants.map((p: ParticipantDto) => ({
-                UserId: p.UserId,
-                Amount: p.Amount ?? 0,
-                PaidAmount: p.PaidAmount ?? 0
-            }))
+            Participants: finalParticipants
         };
 
         try {

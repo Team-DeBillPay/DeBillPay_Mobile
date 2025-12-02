@@ -9,6 +9,7 @@ type Props = {
   textStyle?: TextStyle;
   onPress?: () => void;
   fullWidth?: boolean;
+  disabled?:boolean;
 };
 
 const Button: React.FC<Props> = ({ children, variant = 'primary', style, textStyle, onPress, fullWidth = true }) => {

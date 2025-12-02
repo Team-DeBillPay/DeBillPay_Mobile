@@ -7,6 +7,7 @@ import TabNavigator from './src/navigation/TabNavigator';
 import AddFriendScreen from './src/screens/AddFriendScreen';
 import { RegisterStep1, RegisterStep2 } from './src/screens/Auth';
 import CheckDetailsScreen from './src/screens/CheckDetailsScreen';
+import CheckHistoryScreen from './src/screens/CheckHistoryScreen';
 import CreateEbillStep1 from './src/screens/CreateEbillStep1';
 import CreateEbillStep2 from './src/screens/CreateEbillStep2';
 import CreateEbillStep3 from './src/screens/CreateEbillStep3';
@@ -24,6 +25,7 @@ export type RootStackParamList = {
   CreateEbillStep2: { name: string; description: string; scenario: string; currency: string };
   CreateEbillStep3: { name: string; description: string; scenario: string; currency: string; participants: any[]; total?: number };
   CheckDetails: { ebillId: number };
+  CheckHistory: { ebillId: number };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -54,6 +56,7 @@ const { user, isLoading } = useAuth();
             <Stack.Screen name="CreateEbillStep2" component={CreateEbillStep2} />
             <Stack.Screen name="CreateEbillStep3" component={CreateEbillStep3} />
             <Stack.Screen name="CheckDetails" component={CheckDetailsScreen} />
+            <Stack.Screen name="CheckHistory" component={CheckHistoryScreen} />
           </>
         )}
 
