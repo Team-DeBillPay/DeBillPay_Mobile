@@ -215,20 +215,12 @@ const CheckDetailsScreen: React.FC = () => {
   const isMySelected = selectedMember && user ? selectedMember.id === user.id : false;
 
   const infoAssigned = selectedMember?.assigned ?? 0;
-  const infoSpent = selectedMember?.spent ?? undefined;
+  const infoSpent = selectedMember?.spent ?? 0;
   const infoPaid = selectedMember?.paid ?? 0;
   const infoDebt = selectedMember?.debt ?? 0;
   const isSharedScenario = ebill.scenario === 'спільні витрати';
 
   const openAddModal = () => setIsAddModal(true);
-
-  const onCommentsPress = () => {
-    console.log('Open comments for ebill', ebillId);
-  };
-
-  const onHistoryPress = () => {
-    navigation.navigate('CheckHistory', { ebillId });
-  };
 
   const getContactsForAdd = () => {
     const existingUserIds = members.map((m) => m.id);
@@ -245,6 +237,7 @@ const CheckDetailsScreen: React.FC = () => {
       name: displayName,
       assigned: 0,
       paid: 0,
+      spent: 0,
       debt: 0,
       status: 'непогашений',
       isAdmin: false,
@@ -298,10 +291,22 @@ const CheckDetailsScreen: React.FC = () => {
     }
   };
 
-  const updateSelectedField = (memberId: number, field: 'assigned' | 'paid' | 'name' | 'description', value: number | string) => {
+  const updateSelectedField = (
+    memberId: number,
+    field: 'assigned' | 'paid' | 'spent' | 'name' | 'description',
+    value: number | string
+  ) => {
     setMembers((prev) =>
       prev.map((m) => {
         if (m.id !== memberId) return m;
+
+        if (field === 'spent') {
+          const newSpent = Number(value) || 0;
+          return {
+            ...m,
+            spent: newSpent,
+          };
+        }
 
         if (field === 'assigned') {
           const newAssigned = Number(value) || 0;
@@ -378,17 +383,26 @@ const CheckDetailsScreen: React.FC = () => {
         const dto: any = { participantId: m.participantId };
 
         if (m.assigned !== orig.assigned) {
-          if (ebill.scenario !== 'рівний розподіл') {
+          if (ebill.scenario === 'індивідуальні суми') {
             dto.assignedAmount = m.assigned;
           } else {
           }
         }
 
+        if ((m.spent ?? null) !== (orig.spent ?? null)) {
+          if (ebill.scenario === 'спільні витрати') {
+            dto.paidAmount = m.spent ?? 0;
+          } else {
+            console.log(`Skipping spent update for scenario ${ebill.scenario} user ${m.id}`);
+          }
+        }
+
         if (m.paid !== orig.paid) {
           if (ebill.scenario === 'спільні витрати') {
-            dto.paidAmount = m.paid;
-          } else {
+            console.log(`Skipping balance update for shared scenario user ${m.id}`);
+          } else if (ebill.scenario === 'індивідуальні суми') {
             console.log(`Skipping paid update for scenario ${ebill.scenario} user ${m.id}`);
+          } else {
           }
         }
 
@@ -598,11 +612,11 @@ const CheckDetailsScreen: React.FC = () => {
             </View>
 
             <View style={styles.topRight}>
-              <TouchableOpacity style={styles.iconBtn} onPress={onCommentsPress}>
+              <TouchableOpacity style={styles.iconBtn} onPress={() => console.log('Open comments for ebill', ebillId)}>
                 <Ionicons name="chatbubble-outline" size={20} color="#0E2740" />
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.iconBtn} onPress={onHistoryPress}>
+              <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('CheckHistory', { ebillId })}>
                 <Ionicons name="time-outline" size={20} color="#0E2740" />
               </TouchableOpacity>
 
@@ -712,7 +726,7 @@ const CheckDetailsScreen: React.FC = () => {
                   {isMySelected ? 'Моя частка:' : 'Його/її частка:'}
                 </Text>
                 <View style={styles.valueBox}>
-                  {editMode && ebill.scenario !== 'рівний розподіл' ? (
+                  {editMode && ebill.scenario === 'індивідуальні суми' && selectedMember ? (
                     <TextInput
                       value={String(infoAssigned)}
                       keyboardType="numeric"
@@ -732,7 +746,19 @@ const CheckDetailsScreen: React.FC = () => {
                 <View style={styles.boxRow}>
                   <Text style={styles.boxLabel}>Витратив:</Text>
                   <View style={styles.valueBox}>
-                    <Text style={styles.boxValue}>{formatMoney(infoSpent)}</Text>
+                    {editMode && selectedMember ? (
+                      <TextInput
+                        value={String(infoSpent)}
+                        keyboardType="numeric"
+                        style={styles.editInput}
+                        onChangeText={(v) => {
+                          const n = Number(v) || 0;
+                          if (selectedMember) updateSelectedField(selectedMember.id, 'spent', n);
+                        }}
+                      />
+                    ) : (
+                      <Text style={styles.boxValue}>{formatMoney(infoSpent)}</Text>
+                    )}
                   </View>
                 </View>
               )}
@@ -744,15 +770,7 @@ const CheckDetailsScreen: React.FC = () => {
                     (ebill.scenario === 'рівний розподіл' || ebill.scenario === 'індивідуальні суми') ? (
                       <Text style={[styles.boxValue, { color: '#666' }]}>{formatMoney(infoPaid)}</Text>
                     ) : (
-                      <TextInput
-                        value={String(infoPaid)}
-                        keyboardType="numeric"
-                        style={styles.editInput}
-                        onChangeText={(v) => {
-                          const n = Number(v) || 0;
-                          if (selectedMember) updateSelectedField(selectedMember.id, 'paid', n);
-                        }}
-                      />
+                      <Text style={[styles.boxValue, { color: '#666' }]}>{formatMoney(infoPaid)}</Text>
                     )
                   ) : (
                     <Text style={styles.boxValue}>{formatMoney(infoPaid)}</Text>
