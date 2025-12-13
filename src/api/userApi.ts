@@ -9,6 +9,26 @@ export type UpdateUserData = {
   token?: string;
 };
 
+export type CreateGroupDto = {
+  name: string;
+  friendIds: number[];
+};
+
+export type GroupMember = {
+  memberId: number;
+  userId: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+};
+
+export type Group = {
+  groupId: number;
+  name: string;
+  members: GroupMember[];
+};
+
 export const userApi = {
   getUsers: () => apiClient.get('/api/users'),
   
@@ -35,4 +55,14 @@ export const userApi = {
 
   deleteFriend: (id: number) =>
     apiClient.delete(`/api/contacts/delete?friendId=${id}`),
+
+  getGroups: () => apiClient.get('/api/groups'),
+
+  getGroup: (groupId: number) => apiClient.get(`/api/groups/${groupId}`),
+
+  createGroup: (data: CreateGroupDto) => 
+    apiClient.post('/api/groups/create', data),
+
+  deleteGroup: (groupId: number) => 
+    apiClient.delete(`/api/groups/${groupId}/delete`),
 };
