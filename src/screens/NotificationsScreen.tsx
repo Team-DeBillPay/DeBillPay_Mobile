@@ -118,10 +118,6 @@ const NotificationsScreen: React.FC = () => {
         return 'receipt-outline';
       case 'ebill_updated':
         return 'create-outline';
-      case 'payment_success':
-        return 'checkmark-circle-outline';
-      case 'payment_failed':
-        return 'close-circle-outline';
       default:
         return 'notifications-outline';
     }
@@ -133,11 +129,6 @@ const NotificationsScreen: React.FC = () => {
         return '#456DB4';
       case 'ebill_created':
       case 'ebill_updated':
-        return '#34C759';
-      case 'payment_success':
-        return '#30B0C7';
-      case 'payment_failed':
-        return '#FF3B30';
       default:
         return '#6B7A8A';
     }
@@ -151,10 +142,6 @@ const NotificationsScreen: React.FC = () => {
         return 'Чек створено';
       case 'ebill_updated':
         return 'Чек оновлено';
-      case 'payment_success':
-        return 'Оплата';
-      case 'payment_failed':
-        return 'Помилка оплати';
       default:
         return 'Сповіщення';
     }
@@ -187,10 +174,10 @@ const NotificationsScreen: React.FC = () => {
         <View style={styles.innerCard}>
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.title}>Сповіщення</Text>
+              <Text style={styles.title}>Мої повідомлення</Text>
               {unreadCount > 0 && (
                 <Text style={styles.unreadCount}>
-                  {unreadCount} непрочитаних
+                  {unreadCount} непрочитані
                 </Text>
               )}
             </View>

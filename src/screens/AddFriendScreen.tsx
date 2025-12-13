@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RootStackParamList } from '../../App';
 import { userApi } from '../api/userApi';
 
@@ -34,16 +34,30 @@ const searchUser = async () => {
   }
 };
 
-const sendInvite = async (userId: number) => {
-  try {
-    await userApi.inviteUser(userId);
-    alert("Запрошення успішно надіслано!");
-    setResult(null);
-    setQuery('');
-  } catch (e) {
-    alert("Помилка під час надсилання запрошення");
-  }
-};
+  const sendInvite = async (userId: number) => {
+    try {
+      await userApi.inviteUser(userId);
+      Alert.alert(
+        'Запрошення надіслано',
+        'Ваше запрошення успішно відправлено!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setResult(null);
+              setQuery('');
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      Alert.alert(
+        'Помилка',
+        'Не вдалося надіслати запрошення. Спробуйте ще раз.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
 
   return (
     <ScreenWrapper>
