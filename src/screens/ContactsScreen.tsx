@@ -79,7 +79,18 @@ const deleteFriend = async (id: number, friendName: string) => {
               <Ionicons name="person-add-outline" size={20} color="#0E2740" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.8} onPress={() => navigation.navigate('Invitations')}>
+            <TouchableOpacity 
+              style={styles.headerIconBtn} 
+              onPress={() => navigation.navigate('Groups')}
+            >
+              <Ionicons name="people-outline" size={20} color="#0E2740" />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.headerIconBtn} 
+              activeOpacity={0.8} 
+              onPress={() => navigation.navigate('Invitations')}
+            >
               <Ionicons name="mail-outline" size={20} color="#0E2740" />
             </TouchableOpacity>
           </View>

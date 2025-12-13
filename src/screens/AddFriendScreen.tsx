@@ -2,37 +2,67 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RootStackParamList } from '../../App';
 import { userApi } from '../api/userApi';
+import { useAuth } from '../contexts/AuthContext';
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'AddFriend'>;
 
 const AddFriendScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { user: currentUser } = useAuth();
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+  const [friends, setFriends] = useState<number[]>([]);
 
-const searchUser = async () => {
-  if (!query.trim()) return;
-  setLoading(true);
-  try {
-    const data = await userApi.searchNewContact(query.trim());
-    setResult({
-      id: data.userId,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      phoneNumber: data.phoneNumber
-    });
-  } catch {
+  useEffect(() => {
+    loadFriends();
+  }, []);
+
+  const loadFriends = async () => {
+    try {
+      const contacts = await userApi.getContacts();
+      const friendIds = contacts.map((c: any) => c.friend.userId);
+      setFriends(friendIds);
+    } catch {}
+  };
+
+  const searchUser = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
     setResult(null);
-  } finally {
-    setLoading(false);
-  }
-};
+    
+    try {
+      const data = await userApi.searchNewContact(query.trim());
+
+      if (data.userId === currentUser?.id) {
+        setResult(null);
+        Alert.alert('Це ви!', 'Ви не можете додати себе у друзі.');
+        return;
+      }
+
+      if (friends.includes(data.userId)) {
+        setResult(null);
+        Alert.alert('Вже друзі', 'Цей користувач вже є у вашому списку друзів.');
+        return;
+      }
+
+      setResult({
+        id: data.userId,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phoneNumber: data.phoneNumber
+      });
+    } catch {
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const sendInvite = async (userId: number) => {
     try {
@@ -53,7 +83,7 @@ const searchUser = async () => {
     } catch (e) {
       Alert.alert(
         'Помилка',
-        'Не вдалося надіслати запрошення. Спробуйте ще раз.',
+        'Ви вже відправили чи отримали запрошення від цього користувача.',
         [{ text: 'OK' }]
       );
     }
@@ -94,8 +124,17 @@ const searchUser = async () => {
               placeholderTextColor="#6B7A8A"
               style={styles.searchInput}
             />
-            <TouchableOpacity style={styles.searchBtn} activeOpacity={0.8} onPress={searchUser}>
-              <Ionicons name="search-outline" size={20} color="#0E2740" />
+            <TouchableOpacity 
+              style={styles.searchBtn} 
+              activeOpacity={0.8} 
+              onPress={searchUser}
+              disabled={loading}
+            >
+              <Ionicons 
+                name="search-outline" 
+                size={20} 
+                color={loading ? "#6B7A8A" : "#0E2740"} 
+              />
             </TouchableOpacity>
           </View>
 

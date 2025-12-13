@@ -22,7 +22,7 @@ const TabNavigator: React.FC = () => {
           left: 16,
           right: 16,
           bottom: 0,
-          height: 72,
+          height: 82,
           borderRadius: 16,
           backgroundColor: 'rgba(7,17,42,0.98)',
           paddingBottom: 8,
