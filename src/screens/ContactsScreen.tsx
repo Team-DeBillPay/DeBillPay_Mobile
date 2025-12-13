@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { RootStackParamList } from '../../App';
 import { userApi } from '../api/userApi';
 
@@ -34,14 +34,31 @@ const loadContacts = async () => {
   } catch {}
 };
 
-const deleteFriend = async (id: number) => {
-  try {
-    await userApi.deleteFriend(id);
-    loadContacts();
-  } catch {
-    alert("Не вдалося видалити друга");
-  }
-};
+const deleteFriend = async (id: number, friendName: string) => {
+    Alert.alert(
+      'Видалення друга',
+      `Ви впевнені, що хочете видалити ${friendName} зі списку друзів?`,
+      [
+        {
+          text: 'Скасувати',
+          style: 'cancel'
+        },
+        {
+          text: 'Видалити',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await userApi.deleteFriend(id);
+              loadContacts();
+              Alert.alert('Успішно', 'Друга видалено зі списку');
+            } catch {
+              Alert.alert('Помилка', 'Не вдалося видалити друга');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <ScreenWrapper>
@@ -106,7 +123,7 @@ const deleteFriend = async (id: number) => {
                     <Ionicons name="person-circle-outline" size={28} color="#0E2740" />
                     <Text style={styles.friendName}>{f.firstName} {f.lastName}</Text>
 
-                    <TouchableOpacity activeOpacity={0.8} onPress={() => deleteFriend(f.id)}>
+                    <TouchableOpacity activeOpacity={0.8} onPress={() => deleteFriend(f.id, `${f.firstName} ${f.lastName}`)}>
                       <Ionicons name="trash-outline" size={22} color="#0E2740" />
                     </TouchableOpacity>
                   </View>
@@ -135,6 +152,7 @@ const styles = StyleSheet.create({
     height: '85%',
     maxWidth: 360,
     borderRadius: 22,
+    marginBottom: 20,
     backgroundColor: '#B6CDFF',
     padding: 12,
   },

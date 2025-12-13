@@ -121,7 +121,8 @@ const styles = StyleSheet.create({
     maxWidth: 360, 
     borderRadius: 22, 
     backgroundColor: '#B6CDFF', 
-    padding: 12 
+    padding: 12,
+    marginBottom: 20
   },
   innerCard: { 
     flex: 1, 
@@ -196,7 +197,6 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    opacity: 0.8
   },
   acceptText: { 
     color: '#0E2740', 

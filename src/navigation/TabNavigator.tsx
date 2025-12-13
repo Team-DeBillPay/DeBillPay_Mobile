@@ -1,11 +1,12 @@
 import ChecksScreen from '@/screens/ChecksScreen';
 import ContactsScreen from '@/screens/ContactsScreen';
+import CreateEbillStep1 from '@/screens/CreateEbillStep1';
 import NotificationsScreen from '@/screens/NotificationsScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
-import { View, ViewStyle } from 'react-native';
+import { TouchableOpacity, View, ViewStyle } from 'react-native';
 
 const Tab = createBottomTabNavigator();
 
@@ -49,6 +50,38 @@ const TabNavigator: React.FC = () => {
     >
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Профіль' }} />
       <Tab.Screen name="Checks" component={ChecksScreen} options={{ title: 'Чеки' }} />
+      <Tab.Screen
+        name="CreateEbill"
+        component={CreateEbillStep1}
+        options={{
+          title: '',
+          tabBarIcon: () => null,
+          tabBarButton: ({ onPress }) => (
+            <TouchableOpacity
+              onPress={onPress}
+              activeOpacity={0.9}
+              style={{
+                position: 'absolute',
+                alignSelf: 'center',
+                width: 60,
+                height: 60,
+                borderRadius: 30,
+                backgroundColor: '#3E74D6',
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 6,
+                bottom: 12,
+              }}
+            >
+              <Ionicons name="add" size={34} color="#fff" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <Tab.Screen name="Contacts" component={ContactsScreen} options={{ title: 'Контакти' }} />
       <Tab.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Повідомлення' }} />
     </Tab.Navigator>
