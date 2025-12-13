@@ -32,6 +32,17 @@ export type RootStackParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 
+export type RootStackParamList = {
+  Login: undefined;
+  RegisterStep1: undefined;
+  RegisterStep2: { firstName: string; lastName: string };
+  Tabs: undefined;
+  AddFriend: undefined;
+  Invitations: undefined;
+};
+
+const Stack = createStackNavigator<RootStackParamList>();
+
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
 

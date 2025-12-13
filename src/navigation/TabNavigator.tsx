@@ -22,14 +22,13 @@ const TabNavigator: React.FC = () => {
           left: 16,
           right: 16,
           bottom: 0,
-          height: 84,
+          height: 72,
           borderRadius: 16,
           backgroundColor: 'rgba(7,17,42,0.98)',
           paddingBottom: 8,
-          paddingTop: 8,
           elevation: 8,
           borderTopWidth: 0,
-          overflow: 'visible',
+          overflow: 'hidden',
         },
         tabBarIcon: ({ color, focused }) => {
           const bg = focused ? 'rgba(255,255,255,0.06)' : 'transparent';
