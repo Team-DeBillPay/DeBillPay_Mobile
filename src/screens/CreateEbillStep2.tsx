@@ -296,13 +296,13 @@ const CreateEbillStep2: React.FC = () => {
 
   const getPlaceholderText = () => {
     if (scenario === 'індивідуальні суми') return 'Сума боргу';
-    if (scenario === 'спільні витрати') return 'Витрачено';
+    if (scenario === 'спільні витрати') return 'Сума боргу';
     return 'Сума';
   };
 
   const getMySpendLabel = () => {
-    if (scenario === 'індивідуальні суми') return 'Ваша доля (сума, яку вам повинні)';
-    if (scenario === 'спільні витрати') return 'Ваші витрати (сума, яку ви вже витратили)';
+    if (scenario === 'індивідуальні суми') return 'Ваші витрати';
+    if (scenario === 'спільні витрати') return 'Ваші витрати';
     return 'Загальна сума витрат';
   };
 
@@ -937,7 +937,7 @@ const styles = StyleSheet.create({
     color: '#0E2740',
     backgroundColor: '#fff',
     textAlign: 'right',
-    fontSize: 14,
+    fontSize: 12,
     marginRight: 12
   },
   trashBtn: {
