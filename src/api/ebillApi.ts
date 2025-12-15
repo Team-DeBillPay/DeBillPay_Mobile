@@ -15,4 +15,10 @@ export const ebillApi = {
     apiClient.delete(`/api/ebills/${ebillId}/participants/${participantId}/remove`),
 
   getEbillHistory: (ebillId: number) => apiClient.get(`/api/ebills/${ebillId}/history`),
+
+  getComments: (ebillId: number) => 
+    apiClient.get(`/api/ebills/${ebillId}/comments`),
+
+  createComment: (commentDto: { ebillId: number; text: string }) =>
+    apiClient.post(`/api/ebills/${commentDto.ebillId}/comments/create`, commentDto),
 };

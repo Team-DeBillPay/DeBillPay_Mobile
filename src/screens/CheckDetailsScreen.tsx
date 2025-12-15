@@ -154,18 +154,18 @@ const CheckDetailsScreen: React.FC = () => {
         if (isMe && user) name = `${user.lastName} ${user.firstName?.[0]}. (Я)`;
         else if (contact) name = normalizeName(contact.friend.firstName, contact.friend.lastName);
 
-        const paid = isShared ? p.balance : p.paidAmount;
-        const spent = isShared ? p.paidAmount : undefined;
-        const debt = p.balance;
+        const paid = isShared ? p.paidAmount : p.balance; 
+        const spent = isShared ? p.balance : undefined;   
+        const debt = p.assignedAmount;                  
 
         return {
             participantId: p.participantId,
             id: p.userId,
             name,
-            assigned: p.assignedAmount,
-            paid,
-            spent,
-            debt,
+            assigned: debt,         
+            paid,                   
+            spent,               
+            debt: debt - paid,    
             status: p.paymentStatus,
             isAdmin: p.isAdminRights,
             isEditor: p.isEditorRights,
@@ -631,7 +631,7 @@ const CheckDetailsScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.topRight}>
-                            <TouchableOpacity style={styles.iconBtn} onPress={() => console.log('Open comments for ebill', ebillId)}>
+                            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('CheckComments', { ebillId })}>
                                 <Ionicons name="chatbubble-outline" size={20} color="#0E2740" />
                             </TouchableOpacity>
 

@@ -1,3 +1,4 @@
+import CheckCommentsScreen from '@/screens/CheckCommentsScreen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
@@ -31,6 +32,7 @@ export type RootStackParamList = {
   CreateEbillStep3: { name: string; description: string; scenario: string; currency: string; participants: any[]; total?: number };
   CheckDetails: { ebillId: number; paymentSuccess?: boolean; };
   CheckHistory: { ebillId: number };
+  CheckComments: { ebillId: number };
   WebViewPayment: { data: string; signature: string; ebillId: number; };
 };
 
@@ -65,6 +67,7 @@ const AppContent: React.FC = () => {
             <Stack.Screen name="CreateEbillStep3" component={CreateEbillStep3} />
             <Stack.Screen name="CheckDetails" component={CheckDetailsScreen} />
             <Stack.Screen name="CheckHistory" component={CheckHistoryScreen} />
+            <Stack.Screen name="CheckComments" component={CheckCommentsScreen} />
             <Stack.Screen
               name="WebViewPayment"
               component={WebViewPaymentScreen}
