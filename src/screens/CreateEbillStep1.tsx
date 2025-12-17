@@ -20,6 +20,33 @@ const CreateEbillStep1: React.FC = () => {
   const [openCurrency, setOpenCurrency] = useState(false);
   const [error, setError] = useState('');
 
+  const handleNext = () => {
+    if (!name.trim()) {
+      setError('Введіть назву чеку');
+      return;
+    }
+    
+    if (name.length < 2 || name.length > 100) {
+      setError('Назва чеку має бути від 2 до 100 символів');
+      return;
+    }
+    
+    setError('');
+
+    const scenarioMap: {[key: string]: string} = {
+      'Рівний розподіл': 'рівний розподіл',
+      'Індивідуальні суми': 'індивідуальні суми',
+      'Спільні витрати': 'спільні витрати'
+    };
+    
+    navigation.navigate('CreateEbillStep2', {
+      name: name.trim(),
+      description: description.trim(),
+      scenario: scenarioMap[scenario],
+      currency: currency.toUpperCase()
+    });
+  };
+
   return (
     <ScreenWrapper>
       <View style={styles.logoWrap}>
@@ -44,31 +71,34 @@ const CreateEbillStep1: React.FC = () => {
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
             <TextInput
-            placeholder="Назва чеку"
-            placeholderTextColor="#6B7A8A"
-            style={[styles.input, error ? { borderColor: '#D9534F' } : null]}
-            value={name}
-            onChangeText={(v) => {
+              placeholder="Назва чеку (обов'язково)"
+              placeholderTextColor="#6B7A8A"
+              style={[styles.input, error ? { borderColor: '#D9534F' } : null]}
+              value={name}
+              onChangeText={(v) => {
                 setName(v);
                 if (error) setError('');
-            }}
+              }}
+              maxLength={100}
             />
             {error ? (
-            <Text style={{ color: '#D9534F', marginBottom: 10, marginLeft: 4 }}>
+              <Text style={{ color: '#D9534F', marginBottom: 10, marginLeft: 4 }}>
                 {error}
-            </Text>
+              </Text>
             ) : null}
+            
             <TextInput
-              placeholder="Опис чеку"
+              placeholder="Опис чеку (необов'язково)"
               placeholderTextColor="#6B7A8A"
               style={[styles.input, { height: 80 }]}
               multiline
               value={description}
               onChangeText={setDescription}
+              maxLength={500}
             />
+            
             <Text style={styles.label}>Сценарій розрахунку</Text>
             <View style={[styles.dropdownWrap, styles.scenarioWrap]}>
-
               <TouchableOpacity style={styles.dropdownHeader} onPress={() => setOpenScenario(!openScenario)}>
                 <Text style={styles.dropdownText}>{scenario}</Text>
                 <Ionicons name={openScenario ? "chevron-up" : "chevron-down"} size={18} color="#6B7A8A" />
@@ -76,13 +106,21 @@ const CreateEbillStep1: React.FC = () => {
               {openScenario && (
                 <View style={styles.dropdownList}>
                   {scenarios.map((s) => (
-                    <TouchableOpacity key={s} style={styles.dropdownItem} onPress={() => { setScenario(s); setOpenScenario(false); }}>
+                    <TouchableOpacity 
+                      key={s} 
+                      style={styles.dropdownItem} 
+                      onPress={() => { 
+                        setScenario(s); 
+                        setOpenScenario(false); 
+                      }}
+                    >
                       <Text style={styles.dropdownItemText}>{s}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
             </View>
+            
             <Text style={styles.label}>Валюта</Text>
             <View style={[styles.dropdownWrap, styles.currencyWrap]}>
               <TouchableOpacity style={styles.dropdownHeader} onPress={() => setOpenCurrency(!openCurrency)}>
@@ -92,24 +130,22 @@ const CreateEbillStep1: React.FC = () => {
               {openCurrency && (
                 <View style={styles.dropdownList}>
                   {currencies.map((c) => (
-                    <TouchableOpacity key={c} style={styles.dropdownItem} onPress={() => { setCurrency(c); setOpenCurrency(false); }}>
+                    <TouchableOpacity 
+                      key={c} 
+                      style={styles.dropdownItem} 
+                      onPress={() => { 
+                        setCurrency(c); 
+                        setOpenCurrency(false); 
+                      }}
+                    >
                       <Text style={styles.dropdownItemText}>{c}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
             </View>
-            <TouchableOpacity
-              style={styles.nextBtn}
-            onPress={() => {
-                if (!name.trim()) {
-                setError('Введіть назву чеку');
-                return;
-                }
-                setError('');
-                navigation.navigate('CreateEbillStep2', { name, description, scenario, currency });
-            }}
-            >
+            
+            <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
               <Text style={styles.nextText}>Далі</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -120,17 +156,17 @@ const CreateEbillStep1: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-logoWrap: { 
+  logoWrap: { 
     position: 'absolute', 
     top: 20, 
     left: 20, 
     zIndex: 10 
-},
-logo: { 
+  },
+  logo: { 
     width: 140, 
     height: 42 
-},
-outerCard: { 
+  },
+  outerCard: { 
     width: '90%', 
     height: '82%', 
     maxWidth: 360, 
@@ -138,32 +174,32 @@ outerCard: {
     borderRadius: 22, 
     backgroundColor: '#B6CDFF', 
     padding: 12 
-},
-innerCard: { 
+  },
+  innerCard: { 
     flex: 1, 
     backgroundColor: '#FFFFFF', 
     borderRadius: 16, 
     paddingTop: 18, 
     paddingHorizontal: 14 
-},
-closeBtn: { 
+  },
+  closeBtn: { 
     alignSelf: 'flex-end',
     marginBottom: 6 
-},
-title: { 
+  },
+  title: { 
     textAlign: 'center', 
     color: '#0E2740', 
     fontSize: 28, 
     fontWeight: '700', 
     marginBottom: 20 
-},
-stepsRow: { 
+  },
+  stepsRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'center', 
     marginBottom: 26 
-},
-stepCircle: { 
+  },
+  stepCircle: { 
     width: 36, 
     height: 36, 
     borderRadius: 18, 
@@ -171,47 +207,48 @@ stepCircle: {
     borderColor: '#C9D6E6', 
     alignItems: 'center', 
     justifyContent: 'center' 
-},
-stepActive: { 
+  },
+  stepActive: { 
     backgroundColor: '#3E74D6', 
     borderColor: '#3E74D6' 
-},
-stepNum: { 
+  },
+  stepNum: { 
     color: '#0E2740', 
     fontWeight: '700' 
-},
-stepLine: { 
+  },
+  stepLine: { 
     width: 58, 
     height: 3, 
     backgroundColor: '#C9D6E6', 
     marginHorizontal: 6 
-},
-input: { 
+  },
+  input: { 
     borderWidth: 1, 
     borderColor: '#C9D6E6', 
     borderRadius: 12, 
     padding: 12, 
     color: '#0E2740', 
-    marginBottom: 16 
-},
-label: { 
+    marginBottom: 16,
+    fontSize: 16
+  },
+  label: { 
     fontSize: 14, 
     color: '#0E2740', 
     marginBottom: 6, 
     fontWeight: '600' 
-},
-dropdownWrap: {
+  },
+  dropdownWrap: {
     marginBottom: 16,
     position: 'relative',
     zIndex: 20,
-},
-scenarioWrap: {
+  },
+  scenarioWrap: {
     zIndex: 30,
-},
-currencyWrap: {
+  },
+  currencyWrap: {
     zIndex: 20,
-},
-dropdownHeader: {
+  },
+  dropdownHeader: {
     borderWidth: 1,
     borderColor: '#C9D6E6',
     borderRadius: 12,
@@ -220,11 +257,12 @@ dropdownHeader: {
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-},
-dropdownText: { 
-    color: '#0E2740'
-},
-dropdownList: {
+  },
+  dropdownText: { 
+    color: '#0E2740',
+    fontSize: 16
+  },
+  dropdownList: {
     position: 'absolute',
     top: 52,
     left: 0,
@@ -239,27 +277,27 @@ dropdownList: {
     shadowOpacity: 0.15,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-},
-dropdownItem: { 
+  },
+  dropdownItem: { 
     paddingVertical: 12,
     paddingHorizontal: 12
-},
-dropdownItemText: { 
+  },
+  dropdownItemText: { 
     color: '#0E2740', 
     fontSize: 15 
-},
-nextBtn: { 
+  },
+  nextBtn: { 
     backgroundColor: '#3E74D6', 
     borderRadius: 16, 
     paddingVertical: 14, 
     marginTop: 10 
-},
-nextText: { 
+  },
+  nextText: { 
     color: '#FFFFFF', 
     textAlign: 'center', 
     fontSize: 16, 
     fontWeight: '700' 
-}
+  }
 });
 
 export default CreateEbillStep1;
