@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import React, { useCallback, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -24,29 +23,47 @@ type NotificationItem = {
   senderId?: number;
 };
 
+const AUTO_MARK_READ_DELAY = 3000;
+
 const NotificationsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadNotifications = async () => {
-    try {
-      setLoading(true);
-      const data = await notificationApi.getAll();
-      console.log('Notifications data:', data);
+  const hasMarkedAsReadRef = useRef(false);
+  const isScreenFocusedRef = useRef(false);
+  const markAsReadTimeoutRef = useRef<number | null>(null);
+  const notificationsRef = useRef<NotificationItem[]>([]);
 
+  notificationsRef.current = notifications;
+
+  const loadNotifications = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      const data = await notificationApi.getAll();
+      
       if (Array.isArray(data)) {
-        console.log('Total notifications:', data.length);
-        console.log('Sample notification:', data[0]);
-        setNotifications(data);
+        const validData: NotificationItem[] = data
+          .filter((item: any) => item && item.id && item.message)
+          .map((item: any) => ({
+            ...item,
+            status: item.status || 'read',
+            createdAt: item.createdAt || new Date().toISOString()
+          }));
+        
+        setNotifications(validData);
+
+        const unreadCount = validData.filter(n => n.status === 'unread').length;
+        if (unreadCount > 0 && isScreenFocusedRef.current && !hasMarkedAsReadRef.current) {
+          startAutoMarkReadTimer();
+        }
+        
       } else {
-        console.warn('Expected array but got:', typeof data, data);
         setNotifications([]);
       }
     } catch (error) {
       console.error('Error loading notifications:', error);
-      Alert.alert('Помилка', 'Не вдалося завантажити сповіщення');
       setNotifications([]);
     } finally {
       setLoading(false);
@@ -54,40 +71,108 @@ const NotificationsScreen: React.FC = () => {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadNotifications();
-    }, [])
-  );
+  const startAutoMarkReadTimer = () => {
+    if (markAsReadTimeoutRef.current) {
+      clearTimeout(markAsReadTimeoutRef.current);
+    }
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadNotifications();
+    markAsReadTimeoutRef.current = setTimeout(() => {
+      if (isScreenFocusedRef.current && !hasMarkedAsReadRef.current) {
+        markAllAsReadSilently();
+      }
+    }, AUTO_MARK_READ_DELAY);
   };
 
-  const markAllAsRead = async () => {
-    const unreadNotifications = notifications.filter(n => n.status === 'unread');
-    if (unreadNotifications.length === 0) return;
+  const cancelAutoMarkReadTimer = () => {
+    if (markAsReadTimeoutRef.current) {
+      clearTimeout(markAsReadTimeoutRef.current);
+      markAsReadTimeoutRef.current = null;
+    }
+  };
 
+  const markAllAsReadSilently = async () => {
+    if (hasMarkedAsReadRef.current) return;
+    
+    const unreadCount = notificationsRef.current.filter(n => n.status === 'unread').length;
+    if (unreadCount === 0) {
+      hasMarkedAsReadRef.current = true;
+      return;
+    }
+    
     try {
-      const unreadIds = unreadNotifications.map(n => n.id);
-      const markPromises = unreadIds.map(id => notificationApi.markAsRead(id));
-      await Promise.all(markPromises);
+      setNotifications(prev => prev.map(notif => ({ ...notif, status: 'read' })));
+      hasMarkedAsReadRef.current = true;
 
-      setNotifications(prev =>
-        prev.map(notif => ({ ...notif, status: 'read' }))
-      );
+      notificationApi.markAllAsRead().catch(error => {
+        console.error('Failed to mark notifications as read on server:', error);
+      });
     } catch (error) {
-      console.error('Error marking notifications as read:', error);
+      console.error('Failed to mark notifications as read:', error);
+    }
+  };
+
+  const handleNotificationPress = async (notification: NotificationItem) => {
+    cancelAutoMarkReadTimer();
+
+    if (notification.status === 'unread') {
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.id === notification.id ? { ...notif, status: 'read' } : notif
+        )
+      );
+
+      try {
+        await notificationApi.markAsRead(notification.id);
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+
+    if (notification.type === 'friend_invitation') {
+      navigation.navigate('Invitations');
+    } else if (notification.ebillId) {
+      navigation.navigate('EbillDetails', { ebillId: notification.ebillId });
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    hasMarkedAsReadRef.current = false;
+    cancelAutoMarkReadTimer();
+    await loadNotifications(false);
+  };
+
+  const handleRefreshPress = () => {
+    if (!loading && !refreshing) {
+      onRefresh();
     }
   };
 
   useFocusEffect(
-    useCallback(() => {
-      loadNotifications();
+    React.useCallback(() => {
+      let isActive = true;
+      
+      const init = async () => {
+        isScreenFocusedRef.current = true;
+        hasMarkedAsReadRef.current = false;
+        
+        if (isActive) {
+          await loadNotifications();
+        }
+      };
+      
+      init();
+      
       return () => {
-        if (notifications.length > 0) {
-          markAllAsRead();
+        isActive = false;
+        isScreenFocusedRef.current = false;
+        cancelAutoMarkReadTimer();
+
+        if (!hasMarkedAsReadRef.current) {
+          const hasUnread = notificationsRef.current.some(n => n.status === 'unread');
+          if (hasUnread) {
+            markAllAsReadSilently();
+          }
         }
       };
     }, [])
@@ -96,73 +181,65 @@ const NotificationsScreen: React.FC = () => {
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return dateString;
-      }
-      return date.toLocaleString('uk-UA', {
+      if (isNaN(date.getTime())) return '';
+      
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffMins < 1) return 'щойно';
+      if (diffMins < 60) return `${diffMins} хв тому`;
+      if (diffHours < 24) return `${diffHours} год тому`;
+      if (diffDays === 1) return 'вчора';
+      if (diffDays < 7) return `${diffDays} дн тому`;
+      
+      return date.toLocaleDateString('uk-UA', {
         day: '2-digit',
         month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
+        year: '2-digit'
       });
     } catch {
-      return dateString;
+      return '';
     }
   };
 
   const getNotificationIcon = (type: string) => {
-    switch (type) {
+    switch (type?.toLowerCase()) {
       case 'friend_invitation':
+      case 'invitation':
         return 'person-add';
       case 'ebill_created':
+      case 'bill_created':
         return 'receipt-outline';
       case 'ebill_updated':
+      case 'bill_updated':
         return 'create-outline';
+      case 'payment':
+      case 'payment_received':
+        return 'wallet-outline';
       default:
         return 'notifications-outline';
     }
   };
 
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case 'friend_invitation':
-        return '#456DB4';
-      case 'ebill_created':
-      case 'ebill_updated':
-      default:
-        return '#6B7A8A';
-    }
-  };
-
   const getNotificationTypeText = (type: string) => {
-    switch (type) {
+    switch (type?.toLowerCase()) {
       case 'friend_invitation':
+      case 'invitation':
         return 'Запрошення';
       case 'ebill_created':
+      case 'bill_created':
         return 'Чек створено';
       case 'ebill_updated':
+      case 'bill_updated':
         return 'Чек оновлено';
+      case 'payment':
+      case 'payment_received':
+        return 'Платіж';
       default:
         return 'Сповіщення';
-    }
-  };
-
-  const handleNotificationPress = async (notification: NotificationItem) => {
-    if (notification.status === 'unread') {
-      try {
-        await notificationApi.markAsRead(notification.id);
-        setNotifications(prev =>
-          prev.map(notif =>
-            notif.id === notification.id ? { ...notif, status: 'read' } : notif
-          )
-        );
-      } catch (error) {
-        console.error('Error marking notification as read:', error);
-      }
-    }
-
-    if (notification.type === 'friend_invitation') {
-      navigation.navigate('Invitations' as never);
     }
   };
 
@@ -177,13 +254,16 @@ const NotificationsScreen: React.FC = () => {
               <Text style={styles.title}>Мої повідомлення</Text>
               {unreadCount > 0 && (
                 <Text style={styles.unreadCount}>
-                  {unreadCount} непрочитані
+                  {unreadCount} непрочитан{unreadCount === 1 ? 'е' : 'их'}
                 </Text>
               )}
             </View>
             <TouchableOpacity 
-              onPress={loadNotifications} 
-              style={styles.refreshBtn}
+              onPress={handleRefreshPress}
+              style={[
+                styles.refreshBtn,
+                (loading || refreshing) && styles.refreshBtnDisabled
+              ]}
               disabled={loading || refreshing}
             >
               <Ionicons 
@@ -225,7 +305,6 @@ const NotificationsScreen: React.FC = () => {
                 notifications.map((notification) => {
                   const isUnread = notification.status === 'unread';
                   const iconName = getNotificationIcon(notification.type);
-                  const iconColor = getNotificationColor(notification.type);
                   const typeText = getNotificationTypeText(notification.type);
 
                   return (
@@ -242,7 +321,7 @@ const NotificationsScreen: React.FC = () => {
                         <Ionicons
                           name={iconName as any}
                           size={24}
-                          color={iconColor}
+                          color="#456DB4"
                         />
                       </View>
                       <View style={styles.content}>
@@ -252,27 +331,17 @@ const NotificationsScreen: React.FC = () => {
                             {formatDate(notification.createdAt)}
                           </Text>
                         </View>
-                        <Text style={styles.messageText}>
+                        <Text style={styles.messageText} numberOfLines={3}>
                           {notification.message}
                         </Text>
-                        <View style={styles.footer}>
-                          <View style={styles.statusContainer}>
-                            {isUnread ? (
-                              <View style={styles.statusBadge}>
-                                <Text style={styles.statusText}>Нове</Text>
-                              </View>
-                            ) : (
-                              <View style={styles.statusBadgeRead}>
-                                <Ionicons 
-                                  name="checkmark-done" 
-                                  size={14} 
-                                  color="#34C759" 
-                                />
-                                <Text style={styles.statusTextRead}>Прочитано</Text>
-                              </View>
-                            )}
+                        {isUnread && (
+                          <View style={styles.footer}>
+                            <View style={styles.statusBadge}>
+                              <View style={styles.unreadDot} />
+                              <Text style={styles.statusText}>Непрочитане</Text>
+                            </View>
                           </View>
-                        </View>
+                        )}
                       </View>
                     </TouchableOpacity>
                   );
@@ -328,6 +397,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF5FF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  refreshBtnDisabled: {
+    backgroundColor: '#F5F5F5',
   },
   loader: {
     marginTop: 30,
@@ -392,13 +464,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   dateText: {
-    fontSize: 12,
-    color: '#6B7A8A',
+    fontSize: 11,
+    color: '#8A9BB2',
   },
   messageText: {
     color: '#0E2740',
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 20,
     marginBottom: 8,
     fontWeight: '500',
   },
@@ -406,35 +478,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
-  statusContainer: {
-    alignSelf: 'flex-end',
-  },
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#456DB4',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    alignSelf: 'flex-start',
+    gap: 6,
   },
-  statusBadgeRead: {
-    backgroundColor: '#E8F5E8',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  unreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
   },
   statusText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusTextRead: {
-    color: '#34C759',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
 });

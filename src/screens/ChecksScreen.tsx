@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import moment from 'moment';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ebillApi } from '../api/ebillApi';
 import ScreenWrapper from '../components/ScreenWrapper';
@@ -12,12 +12,24 @@ const ChecksScreen: React.FC = () => {
   const { user } = useAuth();
   const [checks, setChecks] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadChecks();
   }, []);
 
+  // Обновляем данные каждый раз, когда экран попадает в фокус
+  useFocusEffect(
+    useCallback(() => {
+      loadChecks();
+      return () => {
+        // Опционально: очистка при потере фокуса
+      };
+    }, [])
+  );
+
   const loadChecks = async () => {
+    setIsRefreshing(true);
     try {
       const res = await ebillApi.getEbills();
       setChecks((res ?? []).sort(
@@ -25,6 +37,8 @@ const ChecksScreen: React.FC = () => {
       ));
     } catch (e) {
       setChecks([]);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -110,6 +124,11 @@ const ChecksScreen: React.FC = () => {
             </View>
           </View>
           <ScrollView contentContainerStyle={{ paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+            {isRefreshing && (
+              <View style={styles.refreshingContainer}>
+                <Text style={styles.refreshingText}>Оновлення...</Text>
+              </View>
+            )}
             {filteredChecks.map((c) => {
               const myStatus = getMyStatus(c);
               const statusColor = getMyStatusColor(myStatus);
@@ -143,7 +162,7 @@ const ChecksScreen: React.FC = () => {
                 </View>
               );
             })}
-            {filteredChecks.length === 0 && (
+            {filteredChecks.length === 0 && !isRefreshing && (
               <Text style={styles.emptyText}>Чеків не знайдено...</Text>
             )}
           </ScrollView>
@@ -268,6 +287,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#6B7A8A',
     marginTop: 20,
+  },
+  refreshingContainer: {
+    padding: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  refreshingText: {
+    color: '#456DB4',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

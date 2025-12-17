@@ -58,6 +58,14 @@ type ContactDto = {
     };
 };
 
+type UserInfo = {
+    userId: number;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phoneNumber?: string;
+};
+
 type Member = {
     participantId?: number;
     id: number; // userId
@@ -84,12 +92,14 @@ const CheckDetailsScreen: React.FC = () => {
     const [members, setMembers] = useState<Member[]>([]);
     const [organizerName, setOrganizerName] = useState<string>('—');
     const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+    const [currentUserRole, setCurrentUserRole] = useState<'organizer' | 'editor' | 'participant' | null>(null);
 
     const membersScrollRef = useRef<ScrollView | null>(null);
 
     const [isSettingsModal, setIsSettingsModal] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [isAddModal, setIsAddModal] = useState(false);
+    const [isRightsModal, setIsRightsModal] = useState(false);
     const [contacts, setContacts] = useState<ContactDto[]>([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -104,76 +114,137 @@ const CheckDetailsScreen: React.FC = () => {
     const [editedName, setEditedName] = useState<string>('');
     const [editedDescription, setEditedDescription] = useState<string>('');
 
-    const normalizeName = (first?: string, last?: string) =>
-        `${last ?? ''} ${first?.[0] ?? ''}.`.trim();
+    const [editableParticipants, setEditableParticipants] = useState<Member[]>([]);
+
+    const normalizeName = (first?: string, last?: string) => {
+        if (!first && !last) return '';
+        return `${last || ''} ${first ? first[0] + '.' : ''}`.trim();
+    };
 
     const formatMoney = (v: number | undefined) =>
         `${(v ?? 0).toString()} ${ebill?.currency || 'грн'}`;
 
+    const capitalizeFirst = (str: string) => {
+        if (!str) return '';
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    };
+
     useEffect(() => {
-    if (route.params?.paymentSuccess) {
-        loadDetails();
-        Alert.alert('Успіх', 'Оплата пройшла успішно!');
-        
-        navigation.setParams({ paymentSuccess: undefined });
-    }
+        if (route.params?.paymentSuccess) {
+            loadDetails();
+            Alert.alert('Успіх', 'Оплата пройшла успішно!');
+            
+            navigation.setParams({ paymentSuccess: undefined });
+        }
     }, [route.params]);
 
     useEffect(() => {
-    void loadDetails();
+        void loadDetails();
     }, [ebillId]); 
 
     useFocusEffect(
-  React.useCallback(() => {
-    loadDetails();
-    return () => {
+        React.useCallback(() => {
+            loadDetails();
+            return () => {};
+        }, [ebillId])
+    );
+
+    // Функция для получения информации о пользователе
+    const getUserInfo = async (userId: number): Promise<UserInfo | null> => {
+        try {
+            // Сначала пытаемся получить через /api/users/{id}
+            const userInfo = await userApi.getUser(userId);
+            if (userInfo) {
+                return userInfo;
+            }
+        } catch (error) {
+            console.log('Не вдалося отримати інформацію про користувача через getUser:', userId);
+        }
+        
+        // Если не получилось, пробуем через searchNewContact
+        try {
+            // Получаем всех пользователей
+            const allUsers = await userApi.getUsers();
+            if (Array.isArray(allUsers)) {
+                const foundUser = allUsers.find(u => u.userId === userId);
+                if (foundUser) {
+                    return foundUser;
+                }
+            }
+        } catch (error) {
+            console.log('Не вдалося отримати інформацію про користувача через getUsers:', userId);
+        }
+        
+        return null;
     };
-  }, [ebillId])
-);
 
     const loadDetails = async () => {
-    setLoading(true);
-    try {
-        const data = (await ebillApi.getEbillById(ebillId)) as EbillDto;
-        setEbill(data);
+        setLoading(true);
+        try {
+            const data = (await ebillApi.getEbillById(ebillId)) as EbillDto;
+            setEbill(data);
 
-        setEditedTotal(data.amountOfDept ?? null);
-        setEditedName(data.name ?? '');
-        setEditedDescription(data.description ?? '');
+            setEditedTotal(data.amountOfDept ?? null);
+            setEditedName(data.name ?? '');
+            setEditedDescription(data.description ?? '');
 
-        const userContacts = (await userApi.getContacts()) as ContactDto[];
-        setContacts(userContacts || []);
+            const userContacts = (await userApi.getContacts()) as ContactDto[];
+            setContacts(userContacts || []);
 
-        const isShared = data.scenario === 'спільні витрати';
+            const isShared = data.scenario === 'спільні витрати';
 
-        const allMembers: Member[] = (data.participants || []).map((p: BackendParticipantDto) => {
-        const isMe = p.userId === user?.id;
-        const contact = userContacts.find((c) => c.friend.userId === p.userId);
+            // Получаем информацию о всех участниках
+            const allMembers: Member[] = [];
+            
+            for (const p of (data.participants || [])) {
+                const isMe = p.userId === user?.id;
+                const contact = userContacts.find((c) => c.friend.userId === p.userId);
 
-        let name = `User #${p.userId}`;
-        if (isMe && user) name = `${user.lastName} ${user.firstName?.[0]}. (Я)`;
-        else if (contact) name = normalizeName(contact.friend.firstName, contact.friend.lastName);
+                let name = `User #${p.userId}`;
+                
+                if (isMe && user) {
+                    name = `${user.lastName} ${user.firstName?.[0]?.toUpperCase() || ''}. (Я)`;
+                } else if (contact) {
+                    name = normalizeName(contact.friend.firstName, contact.friend.lastName);
+                } else {
+                    // Получаем информацию о пользователе через API
+                    const userInfo = await getUserInfo(p.userId);
+                    if (userInfo) {
+                        name = normalizeName(userInfo.firstName, userInfo.lastName);
+                    }
+                }
 
-        const paid = isShared ? p.paidAmount : p.balance; 
-        const spent = isShared ? p.balance : undefined;   
-        const debt = p.assignedAmount;                  
+                const paid = isShared ? p.paidAmount : p.balance;
+                const spent = isShared ? p.balance : undefined;
+                const debt = p.assignedAmount;
 
-        return {
-            participantId: p.participantId,
-            id: p.userId,
-            name,
-            assigned: debt,         
-            paid,                   
-            spent,               
-            debt: debt - paid,    
-            status: p.paymentStatus,
-            isAdmin: p.isAdminRights,
-            isEditor: p.isEditorRights,
-        };
-        });
+                allMembers.push({
+                    participantId: p.participantId,
+                    id: p.userId,
+                    name,
+                    assigned: debt,
+                    paid,
+                    spent,
+                    debt: Math.max(debt - paid, 0),
+                    status: p.paymentStatus,
+                    isAdmin: p.isAdminRights,
+                    isEditor: p.isEditorRights,
+                });
+
+                // Определяем роль текущего пользователя
+                if (isMe) {
+                    if (p.isAdminRights) {
+                        setCurrentUserRole('organizer');
+                    } else if (p.isEditorRights) {
+                        setCurrentUserRole('editor');
+                    } else {
+                        setCurrentUserRole('participant');
+                    }
+                }
+            }
 
             const org = allMembers.find((m) => m.isAdmin);
-            setOrganizerName(org?.name ?? '—');
+            setOrganizerName(org?.name || '—');
 
             const visibleMembers: Member[] =
                 data.scenario === 'спільні витрати' ? allMembers : allMembers.filter((m) => !m.isAdmin);
@@ -192,7 +263,11 @@ const CheckDetailsScreen: React.FC = () => {
         } catch (e) {
             console.log('Error loading ebill:', e);
             Alert.alert('Помилка', 'Не вдалося завантажити чек');
-            navigation.goBack();
+            // Возвращаемся на экран чеков
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'MainTabs' }],
+            });
         } finally {
             setLoading(false);
         }
@@ -216,9 +291,12 @@ const CheckDetailsScreen: React.FC = () => {
     if (loading || !ebill) {
         return (
             <ScreenWrapper>
-                <Text style={{ textAlign: 'center', color: '#0E2740', marginTop: 120 }}>
-                    Завантаження...
-                </Text>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#0E2740" />
+                    <Text style={{ textAlign: 'center', color: '#0E2740', marginTop: 16 }}>
+                        Завантаження...
+                    </Text>
+                </View>
             </ScreenWrapper>
         );
     }
@@ -260,6 +338,7 @@ const CheckDetailsScreen: React.FC = () => {
             debt: 0,
             status: 'непогашений',
             isAdmin: false,
+            isEditor: false,
             isNew: true,
         };
 
@@ -274,6 +353,7 @@ const CheckDetailsScreen: React.FC = () => {
             try {
                 membersScrollRef.current?.scrollToEnd({ animated: true });
             } catch (e) {
+                // Ignore scroll errors
             }
         }, 120);
     };
@@ -324,6 +404,7 @@ const CheckDetailsScreen: React.FC = () => {
                     return {
                         ...m,
                         spent: newSpent,
+                        debt: Math.max(m.assigned - m.paid, 0),
                     };
                 }
 
@@ -404,24 +485,12 @@ const CheckDetailsScreen: React.FC = () => {
                 if (m.assigned !== orig.assigned) {
                     if (ebill.scenario === 'індивідуальні суми') {
                         dto.assignedAmount = m.assigned;
-                    } else {
                     }
                 }
 
                 if ((m.spent ?? null) !== (orig.spent ?? null)) {
                     if (ebill.scenario === 'спільні витрати') {
                         dto.paidAmount = m.spent ?? 0;
-                    } else {
-                        console.log(`Skipping spent update for scenario ${ebill.scenario} user ${m.id}`);
-                    }
-                }
-
-                if (m.paid !== orig.paid) {
-                    if (ebill.scenario === 'спільні витрати') {
-                        console.log(`Skipping balance update for shared scenario user ${m.id}`);
-                    } else if (ebill.scenario === 'індивідуальні суми') {
-                        console.log(`Skipping paid update for scenario ${ebill.scenario} user ${m.id}`);
-                    } else {
                     }
                 }
 
@@ -445,45 +514,249 @@ const CheckDetailsScreen: React.FC = () => {
         }
     };
 
-    const SettingsModal = () => (
+    const openRightsModal = () => {
+        if (currentUserRole !== 'organizer') {
+            Alert.alert('Недостатньо прав', 'Тільки організатор може надавати права редактора');
+            return;
+        }
+        
+        setIsSettingsModal(false);
+        
+        // Фильтруем участников, которым можно выдать права (не организатор)
+        const editable = members.filter(member => {
+            const originalParticipant = ebill?.participants.find(p => p.userId === member.id);
+            return originalParticipant && !originalParticipant.isAdminRights;
+        });
+        
+        // Создаем копию с текущими правами редактора
+        const participantsWithRights = editable.map(member => {
+            const originalParticipant = ebill?.participants.find(p => p.userId === member.id);
+            return {
+                ...member,
+                isEditor: originalParticipant?.isEditorRights || false
+            };
+        });
+        
+        setEditableParticipants(participantsWithRights);
+        setIsRightsModal(true);
+    };
+
+    const handleSaveRights = async () => {
+        try {
+            const participantsToUpdate = editableParticipants.map(p => ({
+                participantId: p.participantId!,
+                isEditorRights: p.isEditor || false
+            }));
+            
+            await ebillApi.updateEditorRights(ebillId, participantsToUpdate);
+            
+            // Обновляем данные
+            await loadDetails();
+            setIsRightsModal(false);
+            Alert.alert('Успіх', 'Права редактора оновлено');
+        } catch (error) {
+            console.log('Error updating rights:', error);
+            Alert.alert('Помилка', 'Не вдалося оновити права редактора');
+        }
+    };
+
+    const confirmDeleteEbill = () => {
+        if (currentUserRole !== 'organizer') {
+            Alert.alert('Недостатньо прав', 'Тільки організатор може видаляти чек');
+            return;
+        }
+        
+        Alert.alert(
+            'Підтвердіть видалення',
+            'Ви впевнені, що хочете видалити цей чек? Цю дію неможливо скасувати.',
+            [
+                { text: 'Скасувати', style: 'cancel' },
+                { text: 'Видалити', style: 'destructive', onPress: handleDeleteEbill }
+            ]
+        );
+    };
+
+    const handleDeleteEbill = async () => {
+        try {
+            await ebillApi.deleteEbill(ebillId);
+            setIsSettingsModal(false);
+            
+            // Возвращаемся на вкладку "Чеки" после успешного удаления
+            navigation.reset({
+                index: 0,
+                routes: [
+                    { 
+                        name: 'Tabs', 
+                        params: { 
+                            screen: 'Checks'
+                        } 
+                    }
+                ],
+            });
+            
+            // Показываем сообщение об успехе
+            Alert.alert('Успіх', 'Чек успішно видалено');
+        } catch (error: any) {
+            console.log('Error deleting ebill:', error);
+            if (error.response?.status === 403) {
+                Alert.alert('Помилка', 'Тільки організатор може видаляти чек');
+            } else if (error.response?.status === 404) {
+                Alert.alert('Помилка', 'Чек не знайдено');
+            } else {
+                Alert.alert('Помилка', 'Не вдалося видалити чек');
+            }
+        }
+    };
+
+    const handleOpenEditMode = () => {
+        if (currentUserRole === 'participant') {
+            Alert.alert('Недостатньо прав', 'Тільки організатор або редактор може редагувати чек');
+            return;
+        }
+        
+        setIsSettingsModal(false);
+        setEditMode(true);
+    };
+
+    const SettingsModal = () => {
+        const canEdit = currentUserRole === 'organizer' || currentUserRole === 'editor';
+        const isOrganizer = currentUserRole === 'organizer';
+        
+        return (
+            <Modal
+                visible={isSettingsModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsSettingsModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalWindow}>
+                        <TouchableOpacity
+                            style={styles.modalCloseX}
+                            onPress={() => setIsSettingsModal(false)}
+                            accessibilityLabel="Закрити"
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Ionicons name="close" size={18} color="#0E2740" />
+                        </TouchableOpacity>
+
+                        <Text style={styles.modalTitle}>Налаштування чеку</Text>
+
+                        <TouchableOpacity
+                            style={[styles.modalBtn, !canEdit && styles.disabledBtn]}
+                            onPress={handleOpenEditMode}
+                            disabled={!canEdit}
+                        >
+                            <Text style={[styles.modalBtnText, !canEdit && styles.disabledText]}>
+                                Режим редагування
+                                {!canEdit && " (недоступно)"}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.modalBtn, !isOrganizer && styles.disabledBtn]}
+                            onPress={openRightsModal}
+                            disabled={!isOrganizer}
+                        >
+                            <Text style={[styles.modalBtnText, !isOrganizer && styles.disabledText]}>
+                                Надати права учасникам
+                                {!isOrganizer && " (недоступно)"}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.modalBtn, { backgroundColor: '#FFB4B4' }, !isOrganizer && styles.disabledBtn]}
+                            onPress={confirmDeleteEbill}
+                            disabled={!isOrganizer}
+                        >
+                            <Text style={[styles.modalBtnText, { color: '#fff' }, !isOrganizer && styles.disabledText]}>
+                                Видалити чек
+                                {!isOrganizer && " (недоступно)"}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
+
+    const RightsModal = () => (
         <Modal
-            visible={isSettingsModal}
+            visible={isRightsModal}
             transparent
             animationType="fade"
-            onRequestClose={() => setIsSettingsModal(false)}
+            onRequestClose={() => setIsRightsModal(false)}
         >
             <View style={styles.modalOverlay}>
-                <View style={styles.modalWindow}>
+                <View style={[styles.modalWindow, { maxHeight: '80%' }]}>
                     <TouchableOpacity
                         style={styles.modalCloseX}
-                        onPress={() => setIsSettingsModal(false)}
+                        onPress={() => setIsRightsModal(false)}
                         accessibilityLabel="Закрити"
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                         <Ionicons name="close" size={18} color="#0E2740" />
                     </TouchableOpacity>
 
-                    <Text style={styles.modalTitle}>Налаштування чеку</Text>
-
-                    <TouchableOpacity
-                        style={styles.modalBtn}
-                        onPress={() => {
-                            setIsSettingsModal(false);
-                            setEditMode(true);
-                        }}
-                    >
-                        <Text style={styles.modalBtnText}>Режим редагування</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.modalBtn}>
-                        <Text style={styles.modalBtnText}>Надати права учасникам</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={[styles.modalBtn, { backgroundColor: '#FFB4B4' }]}>
-                        <Text style={[styles.modalBtnText, { color: '#fff' }]}>
-                            Видалити чек
-                        </Text>
-                    </TouchableOpacity>
+                    <Text style={styles.modalTitle}>Права редактора</Text>
+                    
+                    <Text style={{ marginBottom: 16, color: '#666', textAlign: 'center', fontSize: 14 }}>
+                        Виберіть учасників, які можуть редагувати чек
+                    </Text>
+                    
+                    <ScrollView style={{ maxHeight: 300 }}>
+                        {editableParticipants.length === 0 ? (
+                            <Text style={{ textAlign: 'center', color: '#666', marginVertical: 20 }}>
+                                Немає учасників для надання прав
+                            </Text>
+                        ) : (
+                            editableParticipants.map(participant => (
+                                <View key={participant.id} style={styles.rightsRow}>
+                                    <Text style={{ flex: 1, fontSize: 14, color: '#0E2740' }}>
+                                        {participant.name}
+                                    </Text>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.rightsToggle,
+                                            participant.isEditor ? styles.rightsToggleActive : styles.rightsToggleInactive
+                                        ]}
+                                        onPress={() => {
+                                            setEditableParticipants(prev =>
+                                                prev.map(p =>
+                                                    p.id === participant.id
+                                                        ? { ...p, isEditor: !p.isEditor }
+                                                        : p
+                                                )
+                                            );
+                                        }}
+                                    >
+                                        <Text style={[
+                                            styles.rightsToggleText,
+                                            participant.isEditor ? styles.rightsToggleTextActive : {}
+                                        ]}>
+                                            {participant.isEditor ? 'Так' : 'Ні'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ))
+                        )}
+                    </ScrollView>
+                    
+                    <View style={{ flexDirection: 'row', marginTop: 16 }}>
+                        <TouchableOpacity
+                            style={[styles.modalBtn, { flex: 1, marginRight: 8 }]}
+                            onPress={() => setIsRightsModal(false)}
+                        >
+                            <Text style={styles.modalBtnText}>Скасувати</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                            style={[styles.modalBtn, { flex: 1, marginLeft: 8, backgroundColor: '#456DB4' }]}
+                            onPress={handleSaveRights}
+                        >
+                            <Text style={[styles.modalBtnText, { color: '#fff' }]}>Зберегти</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
         </Modal>
@@ -499,7 +772,9 @@ const CheckDetailsScreen: React.FC = () => {
 
                         <ScrollView style={{ marginTop: 8 }}>
                             {available.length === 0 ? (
-                                <Text style={{ marginVertical: 12 }}>Немає доступних контактів</Text>
+                                <Text style={{ marginVertical: 12, textAlign: 'center', color: '#666' }}>
+                                    Немає доступних контактів
+                                </Text>
                             ) : (
                                 available.map((item) => (
                                     <TouchableOpacity
@@ -508,10 +783,12 @@ const CheckDetailsScreen: React.FC = () => {
                                         onPress={() => handleAddParticipant(item.friend.userId)}
                                         hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                                     >
-                                        <Text style={{ fontWeight: '600' }}>
+                                        <Text style={{ fontWeight: '600', color: '#0E2740' }}>
                                             {normalizeName(item.friend.firstName, item.friend.lastName)}
                                         </Text>
-                                        <Text style={{ color: '#666' }}>{item.friend.email ?? item.friend.phoneNumber ?? ''}</Text>
+                                        <Text style={{ color: '#666', fontSize: 12 }}>
+                                            {item.friend.email ?? item.friend.phoneNumber ?? ''}
+                                        </Text>
                                     </TouchableOpacity>
                                 ))
                             )}
@@ -607,6 +884,7 @@ const CheckDetailsScreen: React.FC = () => {
     return (
         <ScreenWrapper>
             <SettingsModal />
+            <RightsModal />
             <AddParticipantModal />
 
             <View style={styles.logoWrap}>
@@ -621,7 +899,22 @@ const CheckDetailsScreen: React.FC = () => {
                 <View style={styles.innerCard}>
                     <View style={styles.topBarRow}>
                         <View style={styles.topLeft}>
-                            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
+                            <TouchableOpacity 
+                                onPress={() => {
+                                    navigation.reset({
+                                        index: 0,
+                                        routes: [
+                                            { 
+                                                name: 'Tabs', 
+                                                params: { 
+                                                    screen: 'Checks'
+                                                } 
+                                            }
+                                        ],
+                                    });
+                                }} 
+                                activeOpacity={0.8}
+                            >
                                 <Ionicons name="arrow-back" size={24} color="#0E2740" />
                             </TouchableOpacity>
                         </View>
@@ -649,10 +942,10 @@ const CheckDetailsScreen: React.FC = () => {
                         </View>
                     </View>
 
-                    <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
-                        <View style={[styles.row, { alignItems: 'center' }]}>
+                    <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+                        <View style={styles.row}>
                             <Text style={styles.labelName}>Назва:</Text>
-                            <View style={{ flex: 1, alignItems: 'center' }}>
+                            <View style={{ flex: 1 }}>
                                 {editMode ? (
                                     <TextInput
                                         value={editedName}
@@ -662,24 +955,24 @@ const CheckDetailsScreen: React.FC = () => {
                                         placeholderTextColor="#A0AFC6"
                                     />
                                 ) : (
-                                    <Text style={styles.billNameCentered}>“{ebill.name}”</Text>
+                                    <Text style={styles.billName}>“{ebill.name}”</Text>
                                 )}
                             </View>
                         </View>
 
-                        <View style={[styles.row, { alignItems: 'center' }]}>
+                        <View style={styles.row}>
                             <Text style={styles.label}>Опис:</Text>
                             <View style={{ flex: 1 }}>
                                 {editMode ? (
                                     <TextInput
                                         value={editedDescription}
                                         onChangeText={setEditedDescription}
-                                        style={[styles.descriptionInput, styles.descriptionInputEditable, { textAlign: 'left' }]}
+                                        style={[styles.descriptionInput, styles.descriptionInputEditable]}
                                         placeholder="Додайте опис (за бажанням)"
                                         placeholderTextColor="#A0AFC6"
                                     />
                                 ) : (
-                                    <Text style={[styles.descriptionText, { textAlign: 'left' }]}>{ebill.description || '—'}</Text>
+                                    <Text style={styles.descriptionText}>{ebill.description || '—'}</Text>
                                 )}
                             </View>
                         </View>
@@ -698,7 +991,7 @@ const CheckDetailsScreen: React.FC = () => {
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Сценарій:</Text>
-                            <Text style={styles.value}>{ebill.scenario}</Text>
+                            <Text style={styles.value}>{capitalizeFirst(ebill.scenario)}</Text>
                         </View>
 
                         <View style={styles.row}>
@@ -934,21 +1227,21 @@ const styles = StyleSheet.create({
         borderColor: '#D7E4F5',
     },
 
-    billNameCentered: {
-        fontSize: 18,
+    billName: {
+        fontSize: 16,
         fontWeight: '700',
         color: '#0E2740',
-        textAlign: 'center',
+        textAlign: 'right',
         marginBottom: 6,
     },
 
     nameInput: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
         color: '#0E2740',
-        textAlign: 'center',
+        textAlign: 'right',
         paddingVertical: 6,
-        width: '95%',
+        width: '100%',
     },
     nameInputEditable: {
         borderBottomWidth: 2,
@@ -959,7 +1252,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        paddingVertical: 6,
+        paddingVertical: 8,
         marginBottom: 6,
     },
 
@@ -990,6 +1283,7 @@ const styles = StyleSheet.create({
         color: '#0E2740',
         paddingVertical: 6,
         paddingHorizontal: 8,
+        textAlign: 'right',
     },
     descriptionInputEditable: {
         borderBottomWidth: 1.6,
@@ -999,6 +1293,7 @@ const styles = StyleSheet.create({
     descriptionText: {
         fontSize: 14,
         color: '#24364B',
+        textAlign: 'right',
         width: '100%',
     },
 
@@ -1154,6 +1449,12 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         textAlign: "center",
     },
+    disabledBtn: {
+        backgroundColor: "#F5F5F5",
+    },
+    disabledText: {
+        color: "#999",
+    },
     addMemberBtn: {
         flexDirection: "row",
         alignItems: "center",
@@ -1169,17 +1470,6 @@ const styles = StyleSheet.create({
         color: "#0E2740",
         fontWeight: "600",
         marginLeft: 6,
-    },
-    removeX: {
-        position: "absolute",
-        top: 4,
-        right: 4,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: "#FF6B6B",
-        justifyContent: "center",
-        alignItems: "center",
     },
     editInput: {
         backgroundColor: "#fff",
@@ -1225,15 +1515,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    trashBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 10,
-        backgroundColor: '#FF6B6B',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: 8,
-    },
     saveBtn: {
         backgroundColor: '#456DB4',
         paddingVertical: 12,
@@ -1244,6 +1525,35 @@ const styles = StyleSheet.create({
     saveBtnText: {
         color: '#fff',
         fontWeight: '700',
+    },
+    rightsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    rightsToggle: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 8,
+        minWidth: 60,
+        alignItems: 'center',
+    },
+    rightsToggleActive: {
+        backgroundColor: '#456DB4',
+    },
+    rightsToggleInactive: {
+        backgroundColor: '#E0E0E0',
+    },
+    rightsToggleText: {
+        color: '#666',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    rightsToggleTextActive: {
+        color: '#fff',
     }
 });
 

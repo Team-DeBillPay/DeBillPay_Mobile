@@ -1,5 +1,15 @@
 import { apiClient } from './apiClient';
 
+
+export type EditorRightsDto = {
+  participantId: number;
+  isEditorRights: boolean;
+};
+
+export type UpdateEditorRightsDto = {
+  participants: EditorRightsDto[];
+};
+
 export const ebillApi = {
   createEbill: (data: any) => apiClient.post('/api/ebills/create', data),
   getEbills: () => apiClient.get('/api/ebills'),
@@ -21,4 +31,10 @@ export const ebillApi = {
 
   createComment: (commentDto: { ebillId: number; text: string }) =>
     apiClient.post(`/api/ebills/${commentDto.ebillId}/comments/create`, commentDto),
+
+  updateEditorRights: (ebillId: number, participants: EditorRightsDto[]) =>
+    apiClient.put(`/api/ebills/${ebillId}/editor-rights`, { participants }),
+  
+  deleteEbill: (ebillId: number) =>
+    apiClient.delete(`/api/ebills/delete${ebillId}`),
 };
